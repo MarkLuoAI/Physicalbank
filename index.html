@@ -135,23 +135,69 @@
         function processData(data) {
             console.log('開始處理數據，輸入數據:', data);
             
+            // 確保 data 是一個陣列
+            let dataArray = [];
+            
+            // 檢查 data 的結構
+            if (Array.isArray(data)) {
+                dataArray = data;
+            } else if (data && typeof data === 'object') {
+                // 如果 data 是對象，檢查是否有特定的數據屬性
+                if (data.data && Array.isArray(data.data)) {
+                    dataArray = data.data;
+                } else if (data.values && Array.isArray(data.values)) {
+                    dataArray = data.values;
+                } else if (data.rows && Array.isArray(data.rows)) {
+                    dataArray = data.rows;
+                } else {
+                    // 如果不是預期的結構，嘗試將對象轉換為數組
+                    dataArray = Object.values(data);
+                }
+            }
+            
+            if (!Array.isArray(dataArray) || dataArray.length === 0) {
+                console.error('錯誤: 無效的數據格式', data);
+                throw new Error('無法處理的數據格式');
+            }
+            
+            console.log('處理後的數據數組:', dataArray);
+            
             // 從數據中提取所有唯一的年份
             const years = [];
             const yearSet = new Set();
             
             // 收集所有年份
-            data.forEach((item, index) => {
-                const year = item.年份 || item.year;
-                console.log(`項目 ${index}:`, '年份:', year, '完整項目:', item);
-                if (year && !yearSet.has(year)) {
-                    yearSet.add(year);
-                    years.push(year.toString());
+            dataArray.forEach((item, index) => {
+                try {
+                    // 嘗試不同的年份字段名稱
+                    let year = item.年份 || item.year || item.Year || item.YEAR || item['年度'];
+                    
+                    // 如果年份是日期對象，轉換為年份
+                    if (year instanceof Date) {
+                        year = year.getFullYear();
+                    } else if (typeof year === 'string') {
+                        // 嘗試從日期字符串中提取年份
+                        const yearMatch = year.match(/\d{4}/);
+                        if (yearMatch) {
+                            year = yearMatch[0];
+                        }
+                    }
+                    
+                    console.log(`項目 ${index}:`, '年份:', year, '完整項目:', item);
+                    
+                    if (year && !yearSet.has(year)) {
+                        yearSet.add(year);
+                        years.push(year.toString());
+                    }
+                } catch (e) {
+                    console.error(`處理項目 ${index} 時出錯:`, e);
                 }
             });
             
             if (years.length === 0) {
-                console.error('錯誤: 未找到有效的年份數據');
-                return;
+                const errorMsg = '錯誤: 未找到有效的年份數據。請檢查數據源是否包含有效的年份字段。';
+                console.error(errorMsg);
+                throw new Error(errorMsg);
             }
             
             // 按年份排序
@@ -211,10 +257,25 @@
 
             console.log('開始填充數據...');
             // 填充數據
-            data.forEach((item, index) => {
+            dataArray.forEach((item, index) => {
                 try {
-                    const year = (item.年份 || item.year || '').toString();
-                    const city = item.縣市 || item.city;
+                    // 嘗試不同的字段名稱來獲取年份
+                    let year = item.年份 || item.year || item.Year || item.YEAR || item['年度'];
+                    
+                    // 處理年份格式
+                    if (year instanceof Date) {
+                        year = year.getFullYear().toString();
+                    } else if (typeof year === 'string') {
+                        const yearMatch = year.match(/\d{4}/);
+                        if (yearMatch) {
+                            year = yearMatch[0];
+                        }
+                    } else if (typeof year === 'number') {
+                        year = year.toString();
+                    }
+                    
+                    // 嘗試不同的字段名稱來獲取城市
+                    const city = item.縣市 || item.city || item.City || item.CITY || item['城市'] || item['地区'];
                     
                     if (!year || !city) {
                         console.warn(`跳過無效的數據項 ${index}:`, item);
@@ -226,12 +287,37 @@
                         return;
                     }
                     
-                    window.appData.data[year].d[city] = parseInt(item.核定金額 || item.amount || 0) || 0;
-                    window.appData.data[year].A[city] = parseInt(item.受益戶數 || item.households || 0) || 0;
-                    window.appData.data[year].B[city] = parseInt(item.受益人次 || item.people || 0) || 0;
-                    window.appData.data[year].C[city] = parseInt(item.受益同住人 || item.cohabitants || 0) || 0;
+                    // 嘗試不同的字段名稱來獲取各項數據
+                    const amount = parseInt(
+                        item.核定金額 || item.amount || item.Amount || item.AMOUNT || item['金額'] || 0
+                    ) || 0;
                     
-                    console.log(`處理項目 ${index}:`, { year, city, data: window.appData.data[year].A[city] });
+                    const households = parseInt(
+                        item.受益戶數 || item.households || item.Households || item.HOUSEHOLDS || item['戶數'] || 0
+                    ) || 0;
+                    
+                    const people = parseInt(
+                        item.受益人次 || item.people || item.People || item.PEOPLE || item['人次'] || 0
+                    ) || 0;
+                    
+                    const cohabitants = parseInt(
+                        item.受益同住人 || item.cohabitants || item.Cohabitants || item.COHABITANTS || item['同住人'] || 0
+                    ) || 0;
+                    
+                    // 更新數據
+                    window.appData.data[year].d[city] = amount;
+                    window.appData.data[year].A[city] = households;
+                    window.appData.data[year].B[city] = people;
+                    window.appData.data[year].C[city] = cohabitants;
+                    
+                    console.log(`處理項目 ${index}:`, { 
+                        year, 
+                        city, 
+                        amount,
+                        households,
+                        people,
+                        cohabitants 
+                    });
                 } catch (error) {
                     console.error(`處理數據項 ${index} 時出錯:`, error, '數據項:', item);
                 }
