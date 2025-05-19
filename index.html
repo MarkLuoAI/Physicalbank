@@ -102,8 +102,20 @@
         // 從 Google Apps Script 獲取數據
         async function fetchData() {
             try {
+                console.log('開始獲取數據，URL:', webAppUrl);
                 const response = await fetch(webAppUrl);
+                console.log('收到響應，狀態:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const result = await response.json();
+                console.log('解析的JSON數據:', result);
+                
+                if (!result || result.length === 0) {
+                    throw new Error('接收到的數據為空');
+                }
                 
                 // 處理數據
                 processData(result);
@@ -113,27 +125,38 @@
                 
             } catch (error) {
                 console.error('獲取數據失敗:', error);
-                document.getElementById('loading').textContent = '數據加載失敗，請刷新頁面重試';
+                const errorMessage = `數據加載失敗: ${error.message || '未知錯誤'}`;
+                console.error(errorMessage);
+                document.getElementById('loading').textContent = errorMessage;
             }
         }
 
         // 處理數據
         function processData(data) {
+            console.log('開始處理數據，輸入數據:', data);
+            
             // 從數據中提取所有唯一的年份
             const years = [];
             const yearSet = new Set();
             
             // 收集所有年份
-            data.forEach(item => {
+            data.forEach((item, index) => {
                 const year = item.年份 || item.year;
+                console.log(`項目 ${index}:`, '年份:', year, '完整項目:', item);
                 if (year && !yearSet.has(year)) {
                     yearSet.add(year);
                     years.push(year.toString());
                 }
             });
             
+            if (years.length === 0) {
+                console.error('錯誤: 未找到有效的年份數據');
+                return;
+            }
+            
             // 按年份排序
             years.sort();
+            console.log('找到的年份:', years);
             
             // 初始化數據結構
             const geoCoordMap = {
@@ -167,6 +190,7 @@
                 data: {}
             };
 
+            console.log('初始化數據結構...');
             // 初始化每年的數據結構
             years.forEach(year => {
                 window.appData.data[year] = {
@@ -185,35 +209,70 @@
                 });
             });
 
+            console.log('開始填充數據...');
             // 填充數據
-            data.forEach(item => {
-                const year = (item.年份 || item.year).toString();
-                const city = item.縣市 || item.city;
-                
-                if (window.appData.data[year] && city) {
+            data.forEach((item, index) => {
+                try {
+                    const year = (item.年份 || item.year || '').toString();
+                    const city = item.縣市 || item.city;
+                    
+                    if (!year || !city) {
+                        console.warn(`跳過無效的數據項 ${index}:`, item);
+                        return;
+                    }
+                    
+                    if (!window.appData.data[year]) {
+                        console.warn(`跳過無效的年份 ${year} 的數據`);
+                        return;
+                    }
+                    
                     window.appData.data[year].d[city] = parseInt(item.核定金額 || item.amount || 0) || 0;
                     window.appData.data[year].A[city] = parseInt(item.受益戶數 || item.households || 0) || 0;
                     window.appData.data[year].B[city] = parseInt(item.受益人次 || item.people || 0) || 0;
                     window.appData.data[year].C[city] = parseInt(item.受益同住人 || item.cohabitants || 0) || 0;
+                    
+                    console.log(`處理項目 ${index}:`, { year, city, data: window.appData.data[year].A[city] });
+                } catch (error) {
+                    console.error(`處理數據項 ${index} 時出錯:`, error, '數據項:', item);
                 }
             });
             
-            console.log('Processed data:', window.appData);
+            console.log('數據處理完成，結果:', window.appData);
         }
 
         // 加載地圖並渲染圖表
         function loadMapAndRender() {
             const mapUrl = "https://slimMay.github.io/storeTW/twCounty2010.json";
+            console.log('開始加載地圖數據...');
             
             fetch(mapUrl)
-                .then(response => response.json())
-                .then(geoJson => {
-                    echarts.registerMap('TW', geoJson);
-                    renderChart();
+                .then(response => {
+                    console.log('地圖數據響應狀態:', response.status);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(mapJson => {
+                    console.log('地圖數據加載成功');
+                    
+                    try {
+                        // 註冊地圖
+                        echarts.registerMap('taiwan', mapJson);
+                        console.log('地圖註冊成功');
+                        
+                        // 渲染圖表
+                        console.log('開始渲染圖表...');
+                        renderChart();
+                    } catch (e) {
+                        console.error('註冊地圖時出錯:', e);
+                        throw e;
+                    }
                 })
                 .catch(error => {
-                    console.error('加載地圖失敗:', error);
-                    document.getElementById('loading').textContent = '地圖加載失敗，請檢查網絡連接';
+                    const errorMsg = `加載地圖失敗: ${error.message || '未知錯誤'}`;
+                    console.error(errorMsg, error);
+                    document.getElementById('loading').textContent = errorMsg;
                 });
         }
 
