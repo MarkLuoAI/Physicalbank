@@ -119,30 +119,86 @@
 
         // 處理數據
         function processData(data) {
+            // 從數據中提取所有唯一的年份
+            const years = [];
+            const yearSet = new Set();
+            
+            // 收集所有年份
+            data.forEach(item => {
+                const year = item.年份 || item.year;
+                if (year && !yearSet.has(year)) {
+                    yearSet.add(year);
+                    years.push(year.toString());
+                }
+            });
+            
+            // 按年份排序
+            years.sort();
+            
+            // 初始化數據結構
+            const geoCoordMap = {
+                '臺北市': [121.5654, 25.0330],
+                '新北市': [121.4657, 25.0126],
+                '桃園市': [121.3012, 24.9936],
+                '臺中市': [120.6736, 24.1477],
+                '臺南市': [120.2130, 22.9919],
+                '高雄市': [120.3014, 22.6273],
+                '基隆市': [121.7415, 25.1276],
+                '新竹市': [120.9647, 24.8036],
+                '嘉義市': [120.4470, 23.4801],
+                '新竹縣': [121.1252, 24.7033],
+                '苗栗縣': [120.9417, 24.5651],
+                '彰化縣': [120.5350, 23.9929],
+                '南投縣': [120.9876, 23.8388],
+                '雲林縣': [120.5272, 23.6960],
+                '嘉義縣': [120.3000, 23.3000],
+                '屏東縣': [120.4879, 22.6822],
+                '宜蘭縣': [121.7377, 24.7021],
+                '花蓮縣': [121.3014, 23.8298],
+                '臺東縣': [121.0711, 22.7566],
+                '澎湖縣': [119.5605, 23.5655],
+                '金門縣': [118.3189, 24.4368],
+                '連江縣': [119.9349, 26.1507]
+            };
+            
             window.appData = {
-                geoCoordMap: data.geoCoordMap,
-                years: data.years,
+                geoCoordMap: geoCoordMap,
+                years: years,
                 data: {}
             };
 
-            // 初始化數據結構
-            data.years.forEach(year => {
+            // 初始化每年的數據結構
+            years.forEach(year => {
                 window.appData.data[year] = {
                     d: {}, // 核定金額
                     A: {}, // 受益戶數
                     B: {}, // 受益人次
                     C: {}  // 受益同住人
                 };
+                
+                // 初始化每個城市的默認值
+                Object.keys(geoCoordMap).forEach(city => {
+                    window.appData.data[year].d[city] = 0;
+                    window.appData.data[year].A[city] = 0;
+                    window.appData.data[year].B[city] = 0;
+                    window.appData.data[year].C[city] = 0;
+                });
             });
 
             // 填充數據
-            data.data.forEach(item => {
-                const year = item.year.toString();
-                window.appData.data[year].d[item.city] = item.amount || 0;
-                window.appData.data[year].A[item.city] = item.households || 0;
-                window.appData.data[year].B[item.city] = item.people || 0;
-                window.appData.data[year].C[item.city] = item.cohabitants || 0;
+            data.forEach(item => {
+                const year = (item.年份 || item.year).toString();
+                const city = item.縣市 || item.city;
+                
+                if (window.appData.data[year] && city) {
+                    window.appData.data[year].d[city] = parseInt(item.核定金額 || item.amount || 0) || 0;
+                    window.appData.data[year].A[city] = parseInt(item.受益戶數 || item.households || 0) || 0;
+                    window.appData.data[year].B[city] = parseInt(item.受益人次 || item.people || 0) || 0;
+                    window.appData.data[year].C[city] = parseInt(item.受益同住人 || item.cohabitants || 0) || 0;
+                }
             });
+            
+            console.log('Processed data:', window.appData);
         }
 
         // 加載地圖並渲染圖表
