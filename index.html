@@ -204,48 +204,9 @@ function initChart() {
     });
 }
 
-// Prepare chart options
-function prepareChartOptions() {
-    // Sort data for each year
-    const sortedMapData = mapData.map(yearData => 
-        [...yearData].sort((a, b) => a.value - b.value)
-    );
-    
-    const sortedPinData = pinData.map(pinType => 
-        pinType.map(yearData => 
-            [...yearData].sort((a, b) => a.value - b.value)
-        )
-    );
-    
-    // Prepare bar data
-    const barData = sortedMapData.map(yearData => 
-        yearData.map(item => item.value)
-    );
-    
-    const categoryData = sortedMapData.map(yearData => 
-        yearData.map(item => item.name)
-    );
-    
-    optionXyMap01 = {
-        // ... (keep the existing timeline and baseOption configuration)
-        // ... (keep the existing chart configuration)
-        // ... (update the data binding parts to use the processed data)
-    };
-    
-    // Add the switchPinType function
-    window.switchPinType = function(type) {
-        currentPinType = type;
-        if (myChart && optionXyMap01) {
-            // Update the chart with new pin type
-            updateChartForPinType();
-        }
-    };
-    
-    // Add UI controls
-    addPinTypeControls();
-}
+// 在 initChart 函數後添加以下代碼
 
-// Helper functions
+// 輔助函數
 function showLoading() {
     document.getElementById('loading').style.display = 'flex';
 }
@@ -266,7 +227,252 @@ function showError(message) {
         </div>`;
 }
 
-// Add pin type control buttons
+// 數據轉換函數
+function convertData(data) {
+    const res = [];
+    for (let i = 0; i < data.length; i++) {
+        const geoCoord = geoCoordMap[data[i].name];
+        if (geoCoord && data[i].value > 0) {
+            res.push({
+                name: data[i].name,
+                value: geoCoord.concat(data[i].value)
+            });
+        }
+    }
+    return res;
+}
+
+// 準備圖表選項
+function prepareChartOptions() {
+    // 排序數據
+    const sortedMapData = mapData.map(yearData => 
+        [...yearData].sort((a, b) => b.value - a.value)
+    );
+    
+    // 準備柱狀圖數據
+    const barData = sortedMapData.map(yearData => 
+        yearData.map(item => item.value)
+    );
+    
+    const categoryData = sortedMapData.map(yearData => 
+        yearData.map(item => item.name)
+    );
+    
+    // 計算每年的總金額
+    const totalAmounts = {};
+    mapData.forEach((yearData, index) => {
+        totalAmounts[year[index]] = yearData.reduce((sum, item) => sum + item.value, 0);
+    });
+    
+    // 定義圖表選項
+    optionXyMap01 = {
+        timeline: {
+            data: year,
+            axisType: 'category',
+            autoPlay: true,
+            playInterval: 3000,
+            left: '10%',
+            right: '10%',
+            bottom: '3%',
+            width: '80%',
+            label: {
+                normal: {
+                    textStyle: {
+                        color: '#ddd',
+                        fontSize: 15
+                    }
+                },
+                emphasis: {
+                    textStyle: {
+                        color: '#fff',
+                        fontSize: 20
+                    }
+                }
+            },
+            symbolSize: 18,
+            lineStyle: {
+                color: '#555'
+            },
+            checkpointStyle: {
+                borderColor: '#777',
+                borderWidth: 2
+            },
+            controlStyle: {
+                showNextBtn: true,
+                showPrevBtn: true,
+                normal: {
+                    color: '#666',
+                    borderColor: '#666'
+                },
+                emphasis: {
+                    color: '#aaa',
+                    borderColor: '#aaa'
+                }
+            }
+        },
+        baseOption: {
+            animation: true,
+            animationDuration: 1000,
+            animationEasing: 'cubicInOut',
+            animationDurationUpdate: 1000,
+            animationEasingUpdate: 'cubicInOut',
+            grid: {
+                right: '10%',
+                top: '11%',
+                bottom: '10%',
+                width: '20%'
+            },
+            tooltip: {
+                trigger: 'item',
+                formatter: function(params) {
+                    if (params.seriesType === 'scatter' || params.seriesType === 'effectScatter') {
+                        return `${params.name}<br/>數值: ${params.value[2]}`;
+                    }
+                    return `${params.name}<br/>數值: ${params.value}`;
+                }
+            },
+            geo: {
+                show: true,
+                map: 'TW',
+                layoutCenter: ['40%', '48%'],
+                roam: true,
+                layoutSize: '111%',
+                zoom: 1,
+                aspectScale: 1,
+                center: [121, 23.5],
+                label: {
+                    emphasis: {
+                        show: false
+                    }
+                },
+                itemStyle: {
+                    normal: {
+                        borderColor: 'rgba(147, 235, 248, 1)',
+                        borderWidth: 1,
+                        areaColor: {
+                            type: 'radial',
+                            x: 0.5,
+                            y: 0.5,
+                            r: 0.8,
+                            colorStops: [{
+                                offset: 0,
+                                color: 'rgba(147, 235, 248, 0)'
+                            }, {
+                                offset: 1,
+                                color: 'rgba(147, 235, 248, .2)'
+                            }],
+                            globalCoord: false
+                        },
+                        shadowColor: 'rgba(128, 217, 248, 1)',
+                        shadowOffsetX: -2,
+                        shadowOffsetY: 2,
+                        shadowBlur: 10
+                    },
+                    emphasis: {
+                        areaColor: '#389BB7',
+                        borderWidth: 0
+                    }
+                }
+            }
+        },
+        options: []
+    };
+
+    // 為每一年創建選項
+    year.forEach((y, n) => {
+        const formattedAmount = totalAmounts[y].toLocaleString();
+        const pinTypeTitles = ["受益戶數", "受益人次", "受益同住人"];
+        
+        optionXyMap01.options.push({
+            title: [
+                {
+                    text: y + ' 實物銀行 服務數據統計',
+                    left: '18%',
+                    top: '2%',
+                    textStyle: {
+                        color: '#fff',
+                        fontSize: 32
+                    }
+                },
+                {
+                    id: 'statistic',
+                    text: y + " 核定金額 總計:",
+                    left: '70%',
+                    top: '4%',
+                    textStyle: {
+                        color: '#fff',
+                        fontSize: 26
+                    }
+                },
+                {
+                    id: 'totalAmount',
+                    text: "$ " + formattedAmount,
+                    left: '81%',
+                    top: '4%',
+                    textStyle: {
+                        color: '#FFC809',
+                        fontSize: 30
+                    }
+                }
+            ],
+            series: [
+                {
+                    type: 'map',
+                    map: 'TW',
+                    geoIndex: 0,
+                    aspectScale: 0.75,
+                    showLegendSymbol: false,
+                    label: {
+                        normal: {
+                            show: false
+                        },
+                        emphasis: {
+                            show: false
+                        }
+                    },
+                    roam: true,
+                    itemStyle: {
+                        normal: {
+                            areaColor: '#031525',
+                            borderColor: '#FFFFFF'
+                        },
+                        emphasis: {
+                            areaColor: '#2B91B7'
+                        }
+                    },
+                    animation: false,
+                    data: mapData[n]
+                },
+                {
+                    name: '核定金额',
+                    type: 'effectScatter',
+                    coordinateSystem: 'geo',
+                    data: convertData(mapData[n]),
+                    symbolSize: function(val) {
+                        return Math.sqrt(val[2]) / 40;
+                    },
+                    showEffectOn: 'render',
+                    rippleEffect: {
+                        brushType: 'stroke'
+                    },
+                    hoverAnimation: true,
+                    itemStyle: {
+                        color: '#FFC809',
+                        shadowBlur: 5,
+                        shadowColor: '#FFC809'
+                    },
+                    zlevel: 1
+                }
+            ]
+         });
+
+    });
+    
+    // 添加切換按鈕
+    addPinTypeControls();
+}
+
+// 添加切換按鈕
 function addPinTypeControls() {
     const pinTypeTitles = ["受益戶數", "受益人次", "受益同住人"];
     const container = document.createElement('div');
@@ -286,11 +492,15 @@ function addPinTypeControls() {
         button.style.borderRadius = '3px';
         button.style.cursor = 'pointer';
         
-        button.onclick = () => switchPinType(index);
+        button.onclick = () => {
+            currentPinType = index;
+            updateChartForPinType();
+        };
+        
         container.appendChild(button);
     });
 
-    // Remove existing controls if any
+    // 移除現有的控制項（如果有的話）
     const existingContainer = document.querySelector('.pin-type-controls');
     if (existingContainer) {
         existingContainer.remove();
@@ -300,20 +510,62 @@ function addPinTypeControls() {
     document.body.appendChild(container);
 }
 
-// Update chart when pin type changes
+// 更新圖表以顯示當前選擇的 Pin 類型
 function updateChartForPinType() {
-    // Update the chart options for the current pin type
-    // This would involve updating the relevant series in optionXyMap01
-    // and then calling myChart.setOption(optionXyMap01);
+    if (!myChart || !optionXyMap01) return;
     
-    // Update button styles
+    // 更新按鈕樣式
     document.querySelectorAll('.pin-type-controls button').forEach((btn, index) => {
         btn.style.backgroundColor = index === currentPinType ? colors[index] : '#2B91B7';
     });
     
-    // Force chart update
-    myChart.setOption(optionXyMap01, true);
+    // 更新圖表數據
+    optionXyMap01.options.forEach((option, index) => {
+        // 移除現有的 pin 數據系列
+        option.series = option.series.filter(series => 
+            series.name !== '受益戶數' && 
+            series.name !== '受益人次' && 
+            series.name !== '受益同住人'
+        );
+        
+        // 添加新的 pin 數據
+        const pinTypeTitles = ["受益戶數", "受益人次", "受益同住人"];
+        const pinSeries = {
+            name: pinTypeTitles[currentPinType],
+            type: 'scatter',
+            coordinateSystem: 'geo',
+            symbol: 'pin',
+            symbolSize: function(val) {
+                return val[2] > 0 ? Math.sqrt(val[2]) * 2.6 : 0;
+            },
+            data: convertData(pinData[currentPinType][index].filter(item => item.value > 0)),
+            label: {
+                normal: {
+                    formatter: function(params) {
+                        return params.value[2];
+                    },
+                    show: true,
+                    textStyle: {
+                        color: '#fff',
+                        fontSize: 15
+                    }
+                }
+            },
+            itemStyle: {
+                color: colors[currentPinType],
+                shadowBlur: 10,
+                shadowColor: colors[currentPinType]
+            },
+            zlevel: 2
+        };
+        
+        option.series.push(pinSeries);
+    });
+    
+    // 更新圖表
+    myChart.setOption(optionXyMap01);
 }
 </script>
+
 </body>
 </html>
