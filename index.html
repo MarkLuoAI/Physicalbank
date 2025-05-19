@@ -105,6 +105,9 @@ async function loadData() {
 // Process data from Google Sheets
 function processData(data) {
     console.log('開始處理數據，共', data.length, '筆資料');
+    console.log('第一筆資料結構:', data[0]);
+    console.log('所有欄位:', Object.keys(data[0]));
+    
     // Reset data structures
     geoCoordMap = {};
     mapData = [[], [], [], [], [], [], [], []];
@@ -115,7 +118,10 @@ function processData(data) {
     ];
     
     // Process each row from the sheet
-    data.forEach(row => {
+    data.forEach((row, index) => {
+        if (index === 0) {
+            console.log('處理第一筆資料:', row);
+        }
         const city = row['城市'];
         if (!city) return;
         
