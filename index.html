@@ -137,13 +137,41 @@
             
             // 使用從服務器返回的 geoCoordMap 和 years
             const geoCoordMap = data.geoCoordMap || {};
-            const years = Array.isArray(data.years) ? data.years.map(String) : [];
             const dataArray = Array.isArray(data.data) ? data.data : [];
+            
+            // 從數據中提取所有唯一的年份
+            const yearSet = new Set();
+            
+            // 處理數據並提取年份
+            const processedData = dataArray.map(item => {
+                if (typeof item.year === 'string' && item.year.includes(',')) {
+                    // 處理逗號分隔的字符串格式: "2017,高雄市,467136,214,598,0"
+                    const [year, city, amount, households, people, cohabitants] = item.year.split(',');
+                    return {
+                        year: year.trim(),
+                        city: city.trim(),
+                        amount: parseInt(amount || 0) || 0,
+                        households: parseInt(households || 0) || 0,
+                        people: parseInt(people || 0) || 0,
+                        cohabitants: parseInt(cohabitants || 0) || 0
+                    };
+                }
+                return item;
+            });
+            
+            // 從處理後的數據中提取年份
+            processedData.forEach(item => {
+                if (item.year) {
+                    yearSet.add(item.year.toString());
+                }
+            });
+            
+            const years = Array.from(yearSet).sort();
             
             console.log('處理後的數據:', {
                 geoCoordMap,
                 years,
-                data: dataArray
+                data: processedData
             });
             
             if (years.length === 0) {
@@ -184,25 +212,10 @@
 
             console.log('開始填充數據...');
             // 填充數據
-            dataArray.forEach((item, index) => {
+            processedData.forEach((item, index) => {
                 try {
-                    // 獲取年份
-                    let year = item.year || item.Year || item.YEAR || item['年度'] || item['year'];
-                    
-                    // 處理年份格式
-                    if (year instanceof Date) {
-                        year = year.getFullYear().toString();
-                    } else if (typeof year === 'string') {
-                        const yearMatch = year.match(/\d{4}/);
-                        if (yearMatch) {
-                            year = yearMatch[0];
-                        }
-                    } else if (typeof year === 'number') {
-                        year = year.toString();
-                    }
-                    
-                    // 獲取城市
-                    const city = item.city || item.City || item.CITY || item['城市'] || item['地区'] || item['縣市'];
+                    const year = item.year.toString();
+                    const city = item.city;
                     
                     if (!year || !city) {
                         console.warn(`跳過無效的數據項 ${index}:`, item);
@@ -215,21 +228,10 @@
                     }
                     
                     // 獲取各項數據
-                    const amount = parseInt(
-                        item.amount || item.Amount || item.AMOUNT || item['金額'] || item['核定金額'] || 0
-                    ) || 0;
-                    
-                    const households = parseInt(
-                        item.households || item.Households || item.HOUSEHOLDS || item['戶數'] || item['受益戶數'] || 0
-                    ) || 0;
-                    
-                    const people = parseInt(
-                        item.people || item.People || item.PEOPLE || item['人次'] || item['受益人次'] || 0
-                    ) || 0;
-                    
-                    const cohabitants = parseInt(
-                        item.cohabitants || item.Cohabitants || item.COHABITANTS || item['同住人'] || item['受益同住人'] || 0
-                    ) || 0;
+                    const amount = parseInt(item.amount) || 0;
+                    const households = parseInt(item.households) || 0;
+                    const people = parseInt(item.people) || 0;
+                    const cohabitants = parseInt(item.cohabitants) || 0;
                     
                     // 更新數據
                     if (window.appData.data[year] && city in geoCoordMap) {
