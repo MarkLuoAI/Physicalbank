@@ -88,38 +88,67 @@
     }
     
     function processData(data) {
-        // Extract unique years
-        years = [...new Set(data.map(item => item.年份))].sort();
-        
-        // Initialize data structures for each year
-        years.forEach(year => {
-            dataByYear[year] = {
-                d: {},  // 核定金额
-                A: {},  // 受益戶數
-                B: {},  // 受益人次
-                C: {}   // 受益同住人
-            };
-        });
-    
-        // Populate data
-        data.forEach(row => {
-            const year = row.年份.toString();
-            const city = row.城市;
+        console.log('開始處理數據，共', data.length, '筆資料');
+        console.log('第一筆資料結構:', data[0]);
+        console.log('所有欄位:', Object.keys(data[0]));
+
+        // 清空現有數據
+        years = [];
+        dataByYear = {};
+
+        // 處理數據
+        data.forEach((item, index) => {
+            console.log(`處理第 ${index + 1} 筆資料:`, item);
             
-            dataByYear[year].d[city] = row.核定金額 || 0;
-            dataByYear[year].A[city] = row.受益戶數 || 0;
-            dataByYear[year].B[city] = row.受益人次 || 0;
-            dataByYear[year].C[city] = row.受益同住人 || 0;
+            const year = item.年份 || item['年份'] || new Date().getFullYear().toString();
+            const city = item.城市 || item['城市'] || '';
+            const amount = parseFloat(item.核定金額 || item['核定金額'] || 0);
+            const beneficiaries = parseInt(item.受益戶數 || item['受益戶數'] || 0);
+            const visits = parseInt(item.受益人次 || item['受益人次'] || 0);
+            const cohabitants = parseInt(item.受益同住人 || item['受益同住人'] || 0);
+
+            // 確保年份存在於 years 數組中
+            if (!years.includes(year)) {
+                years.push(year);
+                dataByYear[year] = {
+                    d: {},  // 核定金額
+                    A: {},  // 受益戶數
+                    B: {},  // 受益人次
+                    C: {}   // 受益同住人
+                };
+            }
+
+            // 添加數據
+            if (city) {
+                dataByYear[year].d[city] = amount;
+                dataByYear[year].A[city] = beneficiaries;
+                dataByYear[year].B[city] = visits;
+                dataByYear[year].C[city] = cohabitants;
+            }
+        });
+
+        // 對年份進行排序
+        years.sort();
+
+        console.log('處理後的數據結構:', {
+            years: years,
+            dataByYear: dataByYear
         });
     }
     
     function initChart() {
-        // Rest of your chart initialization code here
-        // You'll need to modify the chart options to use dataByYear instead of hardcoded data
+        console.log('開始初始化圖表...');
+        console.log('當前年份:', years);
+        console.log('數據結構:', dataByYear);
         
-        // For example, when setting up series data:
-        // data: convertData(getYearData(year, 'd')) // For 核定金额
-        // data: convertData(getYearData(year, ['A','B','C'][currentPinType])) // For pin data
+        // 檢查是否有數據
+        if (years.length === 0) {
+            console.error('沒有可用的年份數據');
+            return;
+        }
+        
+        // 其餘的代碼保持不變
+        // ...
     }
     
     // Helper function to get data for a specific year and type
