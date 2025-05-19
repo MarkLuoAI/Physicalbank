@@ -5,37 +5,6 @@
     <title>實物銀行 服務數據統計</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-    <style>
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            color: #fff;
-            font-family: 'Noto Sans TC', sans-serif;
-        }
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid #3498db;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
 </head>
 <style>
     body {
@@ -50,515 +19,123 @@
 }
 </style>
 <body>
-    <div id="loading" class="loading-overlay">
-        <div class="spinner"></div>
-        <h2>數據載入中，請稍候...</h2>
-    </div>
     <div id="main" style="width: 100%; height: 100vh;"></div>
+    <!-- Replace the entire script section with this: -->
 <script>
-// Replace with your Google Apps Script URL
-const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw-SSHDSGrmCV_ywvlXgrZelswb3mI80MNiddDAaibJ4qKfLPoTQ8BmPcXU9xhvyTrC/exec';
-
-// Global variables
-let chartDom, myChart, optionXyMap01;
-const uploadedDataURL = "https://slimMay.github.io/storeTW/twCounty2010.json";
-const colors = ["#ff0076", "#F46E36", "#04B9FF", "#5DBD32", "#FFC809", "#1DE9B6", "#BDA29A", "#6E7074", "#546570", "#C4CCD3"];
-const year = ["2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024"];
-let currentPinType = 0;
-let geoCoordMap = {};
-
-// Data structures
-let mapData = [[], [], [], [], [], [], [], []];
-let pinData = [
-    [[], [], [], [], [], [], [], []], // 受益戶數
-    [[], [], [], [], [], [], [], []], // 受益人次
-    [[], [], [], [], [], [], [], []]  // 受益同住人
-];
-
-// Initialize the application
-document.addEventListener('DOMContentLoaded', function() {
-    loadData();
-});
-
-// Load data from Google Sheets
-async function loadData() {
-    try {
-        showLoading();
-        console.log('開始載入 Google Sheets 數據...');
-        
-        const response = await fetch(GOOGLE_SCRIPT_URL);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const sheetData = await response.json();
-        console.log('從 Google Sheets 載入的數據:', sheetData);
-        
-        processData(sheetData);
-        initChart();
-        hideLoading();
-    } catch (error) {
-        console.error('載入數據時出錯:', error);
-        showError('數據載入失敗: ' + error.message);
-    }
-}
-
-// Process data from Google Sheets
-function processData(data) {
-    console.log('開始處理數據，共', data.length, '筆資料');
-    console.log('第一筆資料結構:', data[0]);
-    console.log('所有欄位:', Object.keys(data[0]));
+    var chartDom = document.getElementById("main");
+    var myChart = echarts.init(chartDom);
+    var option;
     
-    // Reset data structures
-    geoCoordMap = {};
-    mapData = [[], [], [], [], [], [], [], []];
-    pinData = [
-        [[], [], [], [], [], [], [], []],
-        [[], [], [], [], [], [], [], []],
-        [[], [], [], [], [], [], [], []]
-    ];
+    // Google Apps Script Web App URL - Replace with your published web app URL
+    var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx97Sv0AaiveYNIqBetN2AxJjU3-y4MDgvwwnU4DwqJQOa4d5D0exzdnMTm7hgTejyW/exec';
     
-    // Process each row from the sheet
-    data.forEach((row, index) => {
-        if (index === 0) {
-            console.log('處理第一筆資料:', row);
-        }
-        const city = row['城市'];
-        if (!city) return;
-        
-        // Store coordinates
-        if (row['經度'] && row['緯度']) {
-            geoCoordMap[city] = [parseFloat(row['經度']), parseFloat(row['緯度'])];
-        }
-        
-        // Process data for each year (2017-2024)
-        for (let y = 0; y < 8; y++) {
-            const currentYear = 2017 + y;
-            
-            // Map data (核定金額)
-            const amount = parseFloat(row[`${currentYear}_核定金額`]) || 0;
-            mapData[y].push({
-                year: currentYear.toString(),
-                name: city,
-                value: amount
-            });
-            
-            // Pin data (受益戶數, 受益人次, 受益同住人)
-            const pinTypes = ['受益戶數', '受益人次', '受益同住人'];
-            for (let p = 0; p < 3; p++) {
-                let value = 0;
-                if (p === 0) {
-                    value = parseInt(row[`${currentYear}_${pinTypes[p]}`]) || 0;
-                } else if (p === 1 && y < 4) { // 受益人次 only has data for 2017-2020
-                    value = parseInt(row[`${currentYear}_${pinTypes[p]}`]) || 0;
-                } else if (p === 2 && y < 4) { // 受益同住人 only has data for 2017-2020
-                    value = parseInt(row[`${currentYear}_${pinTypes[p]}`]) || 0;
-                }
-                
-                pinData[p][y].push({
-                    year: currentYear.toString(),
-                    name: city,
-                    value: value
-                });
-            }
-        }
-    });
-    
-    // Add Taiwan total
-    geoCoordMap['全台'] = [121.944845, 22.542893];
-    
-    // Calculate totals for each year
-    for (let y = 0; y < 8; y++) {
-        // Calculate total amount
-        const totalAmount = mapData[y].reduce((sum, item) => sum + item.value, 0);
-        mapData[y].push({
-            year: (2017 + y).toString(),
-            name: '全台',
-            value: totalAmount
-        });
-        
-        // Calculate total for 受益戶數
-        const totalBeneficiaries = pinData[0][y].reduce((sum, item) => sum + item.value, 0);
-        pinData[0][y].push({
-            year: (2017 + y).toString(),
-            name: '全台',
-            value: totalBeneficiaries
-        });
-    }
-}
-
-// Initialize the chart
-function initChart() {
-    console.log('開始初始化圖表...');
-    chartDom = document.getElementById("main");
-    myChart = echarts.init(chartDom);
-    
-    // 添加錯誤處理
-    $.ajax({
-        url: uploadedDataURL,
-        dataType: 'json',
-        success: function(geoJson) {
-            console.log('成功載入地圖數據');
-            echarts.registerMap('TW', geoJson);
-            prepareChartOptions();
-            myChart.setOption(optionXyMap01);
-            
-            // 添加窗口大小調整監聽器
-            window.addEventListener('resize', function() {
-                myChart.resize();
-            });
-        },
-        error: function(xhr, status, error) {
-            console.error('載入地圖數據失敗:', status, error);
-            showError('載入地圖數據失敗: ' + status);
-        }
-    });
-}
-
-// 在 initChart 函數後添加以下代碼
-
-// 輔助函數
-function showLoading() {
-    document.getElementById('loading').style.display = 'flex';
-}
-
-function hideLoading() {
-    document.getElementById('loading').style.display = 'none';
-}
-
-function showError(message) {
-    const loadingEl = document.getElementById('loading');
-    loadingEl.innerHTML = `
-        <div style="text-align: center; padding: 20px;">
-            <h2>數據載入失敗</h2>
-            <p>${message}</p>
-            <button onclick="window.location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #2B91B7; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                重新載入
-            </button>
-        </div>`;
-}
-
-// 數據轉換函數
-function convertData(data) {
-    const res = [];
-    console.log('轉換數據，輸入數據長度:', data.length);
-    
-    for (let i = 0; i < data.length; i++) {
-        const item = data[i];
-        const geoCoord = geoCoordMap[item.name];
-        
-        if (!geoCoord) {
-            console.warn('找不到城市座標:', item.name);
-            continue;
-        }
-        
-        if (item.value > 0) {
-            res.push({
-                name: item.name,
-                value: [...geoCoord, item.value]  // 確保格式為 [經度, 緯度, 值]
-            });
-        }
-    }
-    
-    console.log('轉換後的數據:', res);
-    return res;
-}
-
-// 準備圖表選項
-function prepareChartOptions() {
-    // 排序數據
-    const sortedMapData = mapData.map(yearData => 
-        [...yearData].sort((a, b) => b.value - a.value)
-    );
-    
-    // 準備柱狀圖數據
-    const barData = sortedMapData.map(yearData => 
-        yearData.map(item => item.value)
-    );
-    
-    const categoryData = sortedMapData.map(yearData => 
-        yearData.map(item => item.name)
-    );
-    
-    // 計算每年的總金額
-    const totalAmounts = {};
-    mapData.forEach((yearData, index) => {
-        totalAmounts[year[index]] = yearData.reduce((sum, item) => sum + item.value, 0);
-    });
-    
-    // 定義圖表選項
-    optionXyMap01 = {
-        timeline: {
-            data: year,
-            axisType: 'category',
-            autoPlay: true,
-            playInterval: 3000,
-            left: '10%',
-            right: '10%',
-            bottom: '3%',
-            width: '80%',
-            label: {
-                normal: {
-                    textStyle: {
-                        color: '#ddd',
-                        fontSize: 15
-                    }
-                },
-                emphasis: {
-                    textStyle: {
-                        color: '#fff',
-                        fontSize: 20
-                    }
-                }
-            },
-            symbolSize: 18,
-            lineStyle: {
-                color: '#555'
-            },
-            checkpointStyle: {
-                borderColor: '#777',
-                borderWidth: 2
-            },
-            controlStyle: {
-                showNextBtn: true,
-                showPrevBtn: true,
-                normal: {
-                    color: '#666',
-                    borderColor: '#666'
-                },
-                emphasis: {
-                    color: '#aaa',
-                    borderColor: '#aaa'
-                }
-            }
-        },
-        baseOption: {
-            animation: true,
-            animationDuration: 1000,
-            animationEasing: 'cubicInOut',
-            animationDurationUpdate: 1000,
-            animationEasingUpdate: 'cubicInOut',
-            grid: {
-                right: '10%',
-                top: '11%',
-                bottom: '10%',
-                width: '20%'
-            },
-            tooltip: {
-                trigger: 'item',
-                formatter: function(params) {
-                    if (params.seriesType === 'scatter' || params.seriesType === 'effectScatter') {
-                        return `${params.name}<br/>數值: ${params.value[2]}`;
-                    }
-                    return `${params.name}<br/>數值: ${params.value}`;
-                }
-            },
-            geo: {
-                show: true,
-                map: 'TW',
-                layoutCenter: ['40%', '48%'],
-                roam: true,
-                layoutSize: '111%',
-                zoom: 1,
-                aspectScale: 1,
-                center: [121, 23.5],
-                label: {
-                    emphasis: {
-                        show: false
-                    }
-                },
-                itemStyle: {
-                    normal: {
-                        borderColor: 'rgba(147, 235, 248, 1)',
-                        borderWidth: 1,
-                        areaColor: {
-                            type: 'radial',
-                            x: 0.5,
-                            y: 0.5,
-                            r: 0.8,
-                            colorStops: [{
-                                offset: 0,
-                                color: 'rgba(147, 235, 248, 0)'
-                            }, {
-                                offset: 1,
-                                color: 'rgba(147, 235, 248, .2)'
-                            }],
-                            globalCoord: false
-                        },
-                        shadowColor: 'rgba(128, 217, 248, 1)',
-                        shadowOffsetX: -2,
-                        shadowOffsetY: 2,
-                        shadowBlur: 10
-                    },
-                    emphasis: {
-                        areaColor: '#389BB7',
-                        borderWidth: 0
-                    }
-                }
-            }
-        },
-        options: []
+    // 城市坐标数据
+    var geoCoordMap = {
+        '高雄市': [120.63397253230777, 22.96510807924244],
+        '台中市': [120.88303557156821, 24.22976722061671],
+        '新北市': [121.56233791721156, 24.912096428815047],
+        '屏東縣': [120.644845, 22.542893],
+        '台南市': [120.32621160351262, 23.167583572934454],
+        '桃園市': [121.22942515940727, 24.908913064300542],
+        '花蓮縣': [121.427729, 23.783188],
+        '台北市': [121.51185772382642, 25.02771294110296],
+        '台東縣': [121.054566, 22.872413],
+        '彰化縣': [120.472066, 23.990594],
+        '雲林縣': [120.37140692500215, 23.7220205712259],
+        '南投縣': [120.98222282177481, 23.862057901460222],
+        '基隆市': [121.7090375475519, 25.115942332151228],
+        '新竹縣': [121.15845951265977, 24.676877878638546],
+        '苗栗縣': [120.92111693825872, 24.493472949565177],
+        '嘉義縣': [120.6384686106581, 23.49204553894098],
+        '宜蘭縣': [121.6827471803587, 24.55390323104749],
+        '嘉義市': [120.44380244177937, 23.49123253156815],
+        '新竹市': [120.97063102545773, 24.807783800541078],
+        '澎湖縣': [119.61676029530447, 23.58029482756267],
+        '金門縣': [118.38915926697726, 24.450510475737918],
+        '全台': [121.944845, 22.542893]
     };
-
-    // 為每一年創建選項
-    year.forEach((y, n) => {
-        const formattedAmount = totalAmounts[y].toLocaleString();
-        const pinTypeTitles = ["受益戶數", "受益人次", "受益同住人"];
-        
-        optionXyMap01.options.push({
-            title: [
-                {
-                    text: y + ' 實物銀行 服務數據統計',
-                    left: '18%',
-                    top: '2%',
-                    textStyle: {
-                        color: '#fff',
-                        fontSize: 32
-                    }
-                },
-                {
-                    id: 'statistic',
-                    text: y + " 核定金額 總計:",
-                    left: '70%',
-                    top: '4%',
-                    textStyle: {
-                        color: '#fff',
-                        fontSize: 26
-                    }
-                },
-                {
-                    id: 'totalAmount',
-                    text: "$ " + formattedAmount,
-                    left: '81%',
-                    top: '4%',
-                    textStyle: {
-                        color: '#FFC809',
-                        fontSize: 30
-                    }
-                }
-            ],
-            series: [
-                {
-                type: 'map',
-                map: 'TW',
-                // 其他配置保持不變...
-                data: mapData[n].map(item => {
-                    return {
-                        name: item.name,
-                        value: item.value
-                        };
-                    })
-                },
-                {
-                    name: '核定金额',
-                    type: 'effectScatter',
-                    coordinateSystem: 'geo',
-                    data: convertData(mapData[n].filter(item => item.value > 0)),  // 只包含值大於0的數據
-                    // 其他配置保持不變...
-                }
-            ]
-         });
-
-    });
     
-    // 添加切換按鈕
-    addPinTypeControls();
-}
+    // Initialize empty data structures
+    var years = [];
+    var dataByYear = {};
+    var pinTypeTitles = ["受益戶數", "受益人次", "受益同住人"];
+    var currentPinType = 0;
+    
+    // Fetch data from Google Sheets
+    function fetchData() {
+        // 使用 JSONP 方式調用
+        var script = document.createElement('script');
+        script.src = SCRIPT_URL + '?callback=handleData';
+        document.head.appendChild(script);
+    }
 
-// 添加切換按鈕
-function addPinTypeControls() {
-    const pinTypeTitles = ["受益戶數", "受益人次", "受益同住人"];
-    const container = document.createElement('div');
-    container.style.position = 'absolute';
-    container.style.left = '10px';
-    container.style.bottom = '50px';
-    container.style.zIndex = '999';
-
-    pinTypeTitles.forEach((title, index) => {
-        const button = document.createElement('button');
-        button.textContent = title;
-        button.style.margin = '5px';
-        button.style.padding = '5px 10px';
-        button.style.backgroundColor = index === currentPinType ? colors[index] : '#2B91B7';
-        button.style.color = '#fff';
-        button.style.border = 'none';
-        button.style.borderRadius = '3px';
-        button.style.cursor = 'pointer';
+    // 處理返回的數據
+    function handleData(response) {
+        console.log('API Response:', response);
         
-        button.onclick = () => {
-            currentPinType = index;
-            updateChartForPinType();
-        };
+        if (response.status === 'error') {
+            console.error('Server Error:', response.message, response.stack);
+            return;
+        }
         
-        container.appendChild(button);
-    });
-
-    // 移除現有的控制項（如果有的話）
-    const existingContainer = document.querySelector('.pin-type-controls');
-    if (existingContainer) {
-        existingContainer.remove();
+        if (!response.data || !Array.isArray(response.data)) {
+            console.error('Invalid data format received from server');
+            return;
+        }
+        
+        processData(response.data);
+        initChart();
     }
     
-    container.className = 'pin-type-controls';
-    document.body.appendChild(container);
-}
-
-// 更新圖表以顯示當前選擇的 Pin 類型
-function updateChartForPinType() {
-    if (!myChart || !optionXyMap01) return;
-    
-    // 更新按鈕樣式
-    document.querySelectorAll('.pin-type-controls button').forEach((btn, index) => {
-        btn.style.backgroundColor = index === currentPinType ? colors[index] : '#2B91B7';
-    });
-    
-    // 更新圖表數據
-    optionXyMap01.options.forEach((option, index) => {
-        // 移除現有的 pin 數據系列
-        option.series = option.series.filter(series => 
-            series.name !== '受益戶數' && 
-            series.name !== '受益人次' && 
-            series.name !== '受益同住人'
-        );
+    function processData(data) {
+        // Extract unique years
+        years = [...new Set(data.map(item => item.年份))].sort();
         
-        // 添加新的 pin 數據
-        const pinTypeTitles = ["受益戶數", "受益人次", "受益同住人"];
-        const pinSeries = {
-            name: pinTypeTitles[currentPinType],
-            type: 'scatter',
-            coordinateSystem: 'geo',
-            symbol: 'pin',
-            symbolSize: function(val) {
-                return val[2] > 0 ? Math.sqrt(val[2]) * 2.6 : 0;
-            },
-            data: convertData(pinData[currentPinType][index].filter(item => item.value > 0)),
-            label: {
-                normal: {
-                    formatter: function(params) {
-                        return params.value[2];
-                    },
-                    show: true,
-                    textStyle: {
-                        color: '#fff',
-                        fontSize: 15
-                    }
-                }
-            },
-            itemStyle: {
-                color: colors[currentPinType],
-                shadowBlur: 10,
-                shadowColor: colors[currentPinType]
-            },
-            zlevel: 2
-        };
-        
-        option.series.push(pinSeries);
-    });
+        // Initialize data structures for each year
+        years.forEach(year => {
+            dataByYear[year] = {
+                d: {},  // 核定金额
+                A: {},  // 受益戶數
+                B: {},  // 受益人次
+                C: {}   // 受益同住人
+            };
+        });
     
-    // 更新圖表
-    myChart.setOption(optionXyMap01);
-}
-</script>
-
+        // Populate data
+        data.forEach(row => {
+            const year = row.年份.toString();
+            const city = row.城市;
+            
+            dataByYear[year].d[city] = row.核定金額 || 0;
+            dataByYear[year].A[city] = row.受益戶數 || 0;
+            dataByYear[year].B[city] = row.受益人次 || 0;
+            dataByYear[year].C[city] = row.受益同住人 || 0;
+        });
+    }
+    
+    function initChart() {
+        // Rest of your chart initialization code here
+        // You'll need to modify the chart options to use dataByYear instead of hardcoded data
+        
+        // For example, when setting up series data:
+        // data: convertData(getYearData(year, 'd')) // For 核定金额
+        // data: convertData(getYearData(year, ['A','B','C'][currentPinType])) // For pin data
+    }
+    
+    // Helper function to get data for a specific year and type
+    function getYearData(year, type) {
+        return Object.keys(geoCoordMap).map(city => ({
+            name: city,
+            value: (dataByYear[year] && dataByYear[year][type] && dataByYear[year][type][city]) || 0
+        }));
+    }
+    
+    // Initialize everything when the page loads
+    document.addEventListener('DOMContentLoaded', fetchData);
+    
+    // Rest of your existing code for chart options, styles, etc.
+    // You'll need to modify the chart options to use the new data structure
+    </script>
 </body>
 </html>
 
