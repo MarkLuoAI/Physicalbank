@@ -440,6 +440,11 @@
             // 準備類別數據 (用於柱狀圖)
             const categoryData = mapData[0].map(item => item.name);
             
+            // 定義圖釘類型標題
+            const pinTypeTitles = ['核定金額', '服務戶數', '服務人數'];
+            const currentPinType = 0; // 默認顯示第一種類型
+            const colors = ['#FFC809', '#FF6B6B', '#4CAF50']; // 每種圖釘類型的顏色
+            
             // 轉換數據格式為 [lng, lat, value] 格式
             const convertData = (data) => {
                 return data.map(item => {
@@ -547,6 +552,10 @@
                         text: ['高', '低'],
                         realtime: false,
                         calculable: true,
+                        precision: 0,
+                        formatter: function (value) {
+                            return value.toLocaleString();
+                        },
                         inRange: {
                             color: ['#e0f7fa', '#4fc3f7', '#0288d1', '#01579b']
                         },
@@ -788,27 +797,29 @@
                                     areaColor: '#4b0082'
                                 }
                             },
-                            data: mapData[yearIndex].map(item => ({
+                            data: (mapData[yearIndex] || []).map(item => ({
                                 name: item.name,
-                                value: item.value
-                            })),
-                            selectedMode: 'single'
+                                value: item.value || 0
+                            })).filter(item => item.value > 0), // 只顯示有值的數據點
+                            selectedMode: 'single',
+                            silent: true, // 禁用默認的點擊事件
                         },
                         {
                             // 圖釘數據
-                            name: pinTypeTitles[currentPinType],
+                            name: pinTypeTitles[currentPinType] || '數據',
                             type: 'scatter',
                             coordinateSystem: 'geo',
                             symbol: 'pin',
-                            data: convertData([...pinData[currentPinType][yearIndex]].sort((a, b) => b.value - a.value)),
+                            data: convertData([...(pinData[currentPinType]?.[yearIndex] || [])].sort((a, b) => (b?.value || 0) - (a?.value || 0))),
                             symbolSize: function(val) {
-                                const size = Math.sqrt(val[2]) * 0.5;
+                                if (!val || !Array.isArray(val.value) || val.value.length < 3) return 15;
+                                const size = Math.sqrt(val.value[2]) * 0.5;
                                 return Math.min(Math.max(size, 15), 40);
                             },
                             label: {
                                 show: true,
                                 formatter: function(params) {
-                                    return params.value[2].toLocaleString();
+                                    return params.value?.[2]?.toLocaleString() || '0';
                                 },
                                 color: '#fff',
                                 fontSize: 12,
