@@ -72,7 +72,11 @@
 
     // 從Excel讀取數據
     function loadExcelData() {
-        fetch('data.xlsx')
+        // 使用絕對路徑確保無論在哪個目錄下都能找到文件
+        const excelPath = window.location.href.includes('github.io') ? 
+            'https://markluoai.github.io/Physicalbank/data.xlsx' : 'data.xlsx';
+            
+        fetch(excelPath)
             .then(response => {
                 if (!response.ok) {
                     throw new Error('網絡响应不正常');
