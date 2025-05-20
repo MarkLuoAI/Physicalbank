@@ -21,23 +21,26 @@
 <body>
     <div id="main" style="width: 100%; height: 100vh;"></div>
     <script>
-       var chartDom = document.getElementById("main");
-var myChart = echarts.init(chartDom);
-var option;
+    // 初始化全局变量
+    var chartDom = document.getElementById("main");
+    if (!chartDom) {
+        console.error('Chart container not found');
+    }
+    
+    var option = {};
+    var myChart = null;
+    var optionXyMap01 = null;
+    var yearData = {};
+    var years = [];
+    var AtotalAmounts = {};
+    var pinData = {
+        'pin1': [] // 将在加载数据后填充
+    };
+    
+    // 地图数据URL
+    var uploadedDataURL = "https://slimMay.github.io/storeTW/twCounty2010.json";
 
-// 初始化数据容器
-var yearData = {};
-var years = [];
-var AtotalAmounts = {};
-var pinData = {
-    'pin1': [] // 将在加载数据后填充
-};
 
-// 地图数据URL
-var uploadedDataURL = "https://slimMay.github.io/storeTW/twCounty2010.json";
-
-// 初始化图表选项
-var optionXyMap01;
 
 // 城市坐标数据
 var geoCoordMap = {
@@ -1026,19 +1029,49 @@ function initChart() {
 
 // 页面加载完成后初始化图表
 document.addEventListener('DOMContentLoaded', function() {
+    if (!chartDom) {
+        console.error('Chart container not found');
+        return;
+    }
+    
+    // 初始化图表实例
+    myChart = echarts.init(chartDom);
+    
     // 注册地图数据并初始化图表
     fetch(uploadedDataURL)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
         .then(geoJson => {
             // 注册地图
             echarts.registerMap('TW', geoJson);
+            
             // 初始化图表选项
             initChartOptions(geoJson);
-            // 初始化图表
-            initChart();
+            
+            // 加载CSV数据
+            return loadCSVData().then(() => {
+                // 初始化图表
+                initChart();
+                
+                // 设置图表选项
+                if (optionXyMap01 && myChart) {
+                    myChart.setOption(optionXyMap01);
+                }
+                
+                // 添加窗口大小调整监听器
+                window.addEventListener('resize', function() {
+                    if (myChart) {
+                        myChart.resize();
+                    }
+                });
+            });
         })
         .catch(error => {
-            console.error('Error loading map data:', error);
+            console.error('Error initializing chart:', error);
         });
 });
 
@@ -1072,6 +1105,13 @@ document.body.appendChild(buttonContainer);
 
 // 初始化图表选项
 function initChartOptions(geoJson) {
+    if (!geoJson) return;
+    
+    // 确保图表容器存在
+    if (!chartDom) {
+        console.error('Chart container not found');
+        return;
+    }
     var convertData = function(data) {
         var res = [];
         for (var i = 0; i < data.length; i++) {
@@ -1403,16 +1443,17 @@ emphasis: {
 
 // 初始化图表
 function initChart() {
-    // 确保在数据加载完成后初始化图表
-    loadCSVData().then(() => {
-        // 确保年份数据已加载
-        if (years.length === 0) {
-            console.error('No data loaded from CSV');
-            return;
-        }
-        
-        // 更新图表选项
-        optionXyMap01.timeline.data = year;
+    // 确保年份数据已加载
+    if (!years || years.length === 0) {
+        console.error('No data loaded from CSV');
+        return;
+    }
+    
+    // 更新图表选项
+    if (optionXyMap01) {
+        // 确保years是数组且不为空
+        optionXyMap01.timeline = optionXyMap01.timeline || {};
+        optionXyMap01.timeline.data = Array.isArray(years) ? years : [];
         
         // 清空现有选项
         optionXyMap01.options = [];
@@ -1483,16 +1524,17 @@ function initChart() {
             });
         });
         
-        // 设置图表选项
-        myChart.setOption(optionXyMap01);
-        
-        // 添加窗口大小调整监听器
-        window.addEventListener('resize', function() {
-            myChart.resize();
-        });
-    });
+        // 确保图表实例存在
+        if (myChart && optionXyMap01) {
+            try {
+                // 设置图表选项
+                myChart.setOption(optionXyMap01, true);
+            } catch (e) {
+                console.error('Error setting chart options:', e);
+            }
+        }
+    }
 }
     </script>
 </body>
 </html>
-
