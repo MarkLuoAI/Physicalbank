@@ -273,12 +273,33 @@
                     return response.json();
                 })
                 .then(mapJson => {
-                    console.log('地圖數據加載成功');
+                    console.log('地圖數據加載成功', mapJson);
                     
                     try {
+                        // 確保地圖數據是有效的 GeoJSON
+                        if (!mapJson.type || !mapJson.features) {
+                            throw new Error('無效的地圖數據格式: 缺少必要的 GeoJSON 屬性');
+                        }
+                        
                         // 註冊地圖
-                        echarts.registerMap('taiwan', mapJson);
+                        echarts.registerMap('taiwan', {
+                            type: 'FeatureCollection',
+                            features: mapJson.features.map(feature => ({
+                                ...feature,
+                                properties: {
+                                    ...feature.properties,
+                                    // 確保每個特徵都有必要的屬性
+                                    name: feature.properties?.name || feature.properties?.COUNTYNAME || '未知地區'
+                                }
+                            }))
+                        });
+                        
                         console.log('地圖註冊成功');
+                        
+                        // 設置地圖坐標系
+                        if (!echarts.getMap('taiwan')) {
+                            throw new Error('地圖註冊失敗: 無法獲取註冊的地圖');
+                        }
                         
                         // 渲染圖表
                         console.log('開始渲染圖表...');
@@ -307,6 +328,18 @@
             const totalAmounts = {};
             const AtotalAmounts = {};
             
+            // 確保 geoCoordMap 中的城市名稱與地圖數據匹配
+            const normalizeCityName = (city) => {
+                // 將城市名稱轉換為與地圖數據匹配的格式
+                const cityMap = {
+                    '台北市': '臺北市',
+                    '台中市': '臺中市',
+                    '台南市': '臺南市',
+                    '台東縣': '臺東縣'
+                };
+                return cityMap[city] || city;
+            };
+            
             // 處理每年的數據
             years.forEach((year, yearIndex) => {
                 const yearData = data.data[year];
@@ -321,26 +354,37 @@
                 
                 // 為每個城市添加數據
                 Object.keys(geoCoordMap).forEach(city => {
+                    const normalizedCity = normalizeCityName(city);
+                    const cityData = yearData.d[city] || 0;
+                    const cityDataA = yearData.A[city] || 0;
+                    const cityDataB = yearData.B[city] || 0;
+                    const cityDataC = yearData.C[city] || 0;
+                    
                     // 地圖數據
                     mapYearData.push({
-                        name: city,
-                        value: parseInt(yearData.d[city]) || 0
+                        name: normalizedCity,
+                        value: parseInt(cityData) || 0,
+                        // 確保坐標存在
+                        coord: geoCoordMap[city] || [120, 23.5]
                     });
                     
                     // 圖釘數據 (三種類型)
                     pinYearData[0].push({
-                        name: city,
-                        value: parseInt(yearData.A[city]) || 0
+                        name: normalizedCity,
+                        value: parseInt(cityDataA) || 0,
+                        coord: geoCoordMap[city] || [120, 23.5]
                     });
                     
                     pinYearData[1].push({
-                        name: city,
-                        value: parseInt(yearData.B[city]) || 0
+                        name: normalizedCity,
+                        value: parseInt(cityDataB) || 0,
+                        coord: geoCoordMap[city] || [120, 23.5]
                     });
                     
                     pinYearData[2].push({
-                        name: city,
-                        value: parseInt(yearData.C[city]) || 0
+                        name: normalizedCity,
+                        value: parseInt(cityDataC) || 0,
+                        coord: geoCoordMap[city] || [120, 23.5]
                     });
                 });
                 
@@ -359,6 +403,32 @@
             
             // 準備圖表選項
             optionXyMap01 = {
+                // 確保正確設置地理坐標系
+                geo: {
+                    map: 'taiwan',
+                    roam: true,
+                    zoom: 1.2,
+                    center: [120.8, 23.5],
+                    label: {
+                        show: true,
+                        color: '#000',
+                        fontSize: 10
+                    },
+                    itemStyle: {
+                        areaColor: '#f5f5f5',
+                        borderColor: '#999',
+                        borderWidth: 0.5
+                    },
+                    emphasis: {
+                        label: {
+                            show: true,
+                            color: '#fff'
+                        },
+                        itemStyle: {
+                            areaColor: '#4b0082'
+                        }
+                    }
+                },
                 timeline: {
                     data: years,
                     axisType: 'category',
