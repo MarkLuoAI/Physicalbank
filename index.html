@@ -33,7 +33,11 @@ var pinData = {
     'pin1': [] // 将在加载数据后填充
 };
 
+// 地图数据URL
 var uploadedDataURL = "https://slimMay.github.io/storeTW/twCounty2010.json";
+
+// 初始化图表选项
+var optionXyMap01;
 
 // 城市坐标数据
 var geoCoordMap = {
@@ -1022,12 +1026,14 @@ function initChart() {
 
 // 页面加载完成后初始化图表
 document.addEventListener('DOMContentLoaded', function() {
-    // 注册地图数据
+    // 注册地图数据并初始化图表
     fetch(uploadedDataURL)
         .then(response => response.json())
-        .then(data => {
+        .then(geoJson => {
             // 注册地图
-            echarts.registerMap('TW', data);
+            echarts.registerMap('TW', geoJson);
+            // 初始化图表选项
+            initChartOptions(geoJson);
             // 初始化图表
             initChart();
         })
@@ -1064,9 +1070,8 @@ for (var i = 0; i < pinTypeTitles.length; i++) {
 
 document.body.appendChild(buttonContainer);
 
-$.getJSON(uploadedDataURL, function(geoJson) {
-    echarts.registerMap('TW', geoJson);
-    
+// 初始化图表选项
+function initChartOptions(geoJson) {
     var convertData = function(data) {
         var res = [];
         for (var i = 0; i < data.length; i++) {
@@ -1388,15 +1393,105 @@ emphasis: {
                 }
             ]
         });
-    }
-    
-    myChart.setOption(optionXyMap01);
-    
+    };
+
     // 添加窗口大小调整监听器
     window.addEventListener('resize', function() {
         myChart.resize();
     });
-});
+}
+
+// 初始化图表
+function initChart() {
+    // 确保在数据加载完成后初始化图表
+    loadCSVData().then(() => {
+        // 确保年份数据已加载
+        if (years.length === 0) {
+            console.error('No data loaded from CSV');
+            return;
+        }
+        
+        // 更新图表选项
+        optionXyMap01.timeline.data = year;
+        
+        // 清空现有选项
+        optionXyMap01.options = [];
+        
+        // 为每一年创建选项
+        years.forEach((y, n) => {
+            var AformattedAmount = AtotalAmounts[y] ? AtotalAmounts[y].toLocaleString() : '0';
+            
+            optionXyMap01.options.push({
+                title: {
+                    text: y + '年 實物銀行 服務數據統計',
+                    subtext: '總核定金額: ' + AformattedAmount + ' 元',
+                    left: 'center',
+                    top: 20,
+                    textStyle: {
+                        color: '#fff',
+                        fontSize: 24
+                    },
+                    subtextStyle: {
+                        color: '#ddd',
+                        fontSize: 16,
+                        padding: [10, 0, 0, 0]
+                    }
+                },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        if (params.seriesType === 'map') {
+                            return params.name + ': ' + (params.value ? params.value.toLocaleString() + ' 元' : '0 元');
+                        }
+                        return params.name + ': ' + (params.value ? params.value[2].toLocaleString() + ' 元' : '0 元');
+                    }
+                },
+                visualMap: {
+                    min: 0,
+                    max: 2000000,
+                    text: ['高', '低'],
+                    realtime: false,
+                    calculable: true,
+                    inRange: {
+                        color: ['#50a3ba', '#eac736', '#d94e5d']
+                    },
+                    textStyle: {
+                        color: '#ddd'
+                    }
+                },
+                series: [
+                    {
+                        name: '核定金额',
+                        type: 'map',
+                        map: 'TW',
+                        roam: true,
+                        label: {
+                            show: true,
+                            color: '#fff'
+                        },
+                        emphasis: {
+                            label: {
+                                color: '#fff'
+                            }
+                        },
+                        data: Object.entries(yearData[y]).map(([name, value]) => ({
+                            name,
+                            value
+                        }))
+                    }
+                ]
+            });
+        });
+        
+        // 设置图表选项
+        myChart.setOption(optionXyMap01);
+        
+        // 添加窗口大小调整监听器
+        window.addEventListener('resize', function() {
+            myChart.resize();
+        });
+    });
+}
     </script>
 </body>
 </html>
