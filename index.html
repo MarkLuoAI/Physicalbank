@@ -9,42 +9,24 @@
 </head>
 <style>
     body {
-        width: 100vw;
-        height: 100vh;
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        background-image: linear-gradient(45deg, #4b0082, #00005b, #000020);
-        font-family: 'Microsoft JhengHei', Arial, sans-serif;
-    }
-    #main {
-        width: 100%;
-        height: 100vh;
-    }
-    .loading {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        color: white;
-        font-size: 24px;
-        z-index: 1000;
-    }
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-image: linear-gradient(45deg, #4b0082, #00005b, #000020);
+  font-family: 'Montserrat', sans-serif;
+}
 </style>
 <body>
-    <div id="loading" class="loading">數據加載中，請稍候...</div>
-    <div id="main"></div>
+    <div id="main" style="width: 100%; height: 100vh;"></div>
     <script>
-    // 初始化圖表
     var chartDom = document.getElementById("main");
     var myChart = echarts.init(chartDom);
-    
-    // 城市坐標數據
+    var option;
+
+    // 城市坐标数据
     var geoCoordMap = {
         '高雄市': [120.63397253230777, 22.96510807924244],
         '台中市': [120.88303557156821, 24.22976722061671],
@@ -63,193 +45,1367 @@
         '苗栗縣': [120.92111693825872, 24.493472949565177],
         '嘉義縣': [120.6384686106581, 23.49204553894098],
         '宜蘭縣': [121.6827471803587, 24.55390323104749],
-        '嘉義市': [120.44380244177937, 23.49123253156815],
-        '新竹市': [120.97063102545773, 24.807783800541078],
-        '澎湖縣': [119.61676029530447, 23.58029482756267],
-        '金門縣': [118.3825301, 24.4367934],
-        '連江縣': [119.9285309, 26.1505556]
+        '新竹市': [120.964686, 24.803945],
+        '嘉義市': [120.472462, 23.480075],
+        '澎湖縣': [119.584570, 23.569846],
+        '金門縣': [118.318370, 24.436793],
+        '連江縣': [119.539704, 26.197584]
     };
 
     // 從Excel讀取數據
     function loadExcelData() {
-        // 使用絕對路徑確保無論在哪個目錄下都能找到文件
-        const excelPath = window.location.href.includes('github.io') ? 
-            'https://markluoai.github.io/Physicalbank/data.xlsx' : 'data.xlsx';
+        return new Promise((resolve, reject) => {
+            const url = 'data.xlsx';
+            const oReq = new XMLHttpRequest();
+            oReq.open('GET', url, true);
+            oReq.responseType = 'arraybuffer';
             
-        fetch(excelPath)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('網絡响应不正常');
-                }
-                return response.arrayBuffer();
-            })
-            .then(buffer => {
-                // 解析Excel文件
-                const data = new Uint8Array(buffer);
-                const workbook = XLSX.read(data, { type: 'array' });
-                
-                // 獲取第一個工作表
-                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                // 將工作表轉換為JSON
-                const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-                
-                // 處理數據並更新圖表
-                processData(jsonData);
-                
-                // 隱藏加載動畫
-                document.getElementById('loading').style.display = 'none';
-            })
-            .catch(error => {
-                console.error('加載Excel文件時出錯:', error);
-                document.getElementById('loading').textContent = '加載數據失敗，請刷新頁面重試';
-            });
-    }
-
-    // 處理數據並更新圖表
-    function processData(data) {
-        if (!data || data.length < 2) {
-            console.error('Excel數據為空或格式不正確');
-            return;
-        }
-        
-        // 示例：將數據轉換為ECharts所需的格式
-        const chartData = [];
-        let maxValue = 0;
-        
-        // 跳過表頭行，從第二行開始處理
-        for (let i = 1; i < data.length; i++) {
-            const row = data[i];
-            if (row && row.length >= 2) {  // 確保行有效且有足夠的列
-                const city = String(row[0]).trim();
-                const value = parseFloat(row[1]) || 0;
-                if (city && geoCoordMap[city]) {
-                    maxValue = Math.max(maxValue, value);
-                    chartData.push({
-                        name: city,
-                        value: geoCoordMap[city].concat([value])
+            oReq.onload = function(e) {
+                try {
+                    const arraybuffer = oReq.response;
+                    const data = new Uint8Array(arraybuffer);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    
+                    // 獲取第一個工作表
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // 將工作表轉換為JSON
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                    
+                    // 獲取表頭和數據
+                    const headers = jsonData[0];
+                    const rows = jsonData.slice(1);
+                    
+                    // 轉換為需要的格式
+                    const result = [];
+                    rows.forEach(row => {
+                        if (row.length >= 2) {
+                            const city = row[0];
+                            const value = row[1];
+                            if (city && geoCoordMap[city]) {
+                                result.push({
+                                    name: city,
+                                    value: geoCoordMap[city].concat([value])
+                                });
+                            }
+                        }
                     });
+                    
+                    resolve(result);
+                } catch (error) {
+                    console.error('Error processing Excel file:', error);
+                    reject(error);
                 }
-            }
-        }
-        
-        // 更新圖表配置
-        updateChart(chartData, maxValue);
-    }
-
-    // 更新圖表
-    function updateChart(chartData, maxValue) {
-        const option = {
-            title: {
-                text: '實物銀行服務數據統計',
-                left: 'center',
-                textStyle: {
-                    color: '#fff',
-                    fontSize: 20
-                }
-            },
-            tooltip: {
-                trigger: 'item',
-                formatter: function(params) {
-                    if (params.seriesType === 'scatter') {
-                        return `${params.name}<br/>數值: ${params.value[2]}`;
-                    }
-                    return params.name;
-                }
-            },
-            visualMap: {
-                min: 0,
-                max: maxValue,
-                text: ['高', '低'],
-                realtime: false,
-                calculable: true,
-                inRange: {
-                    color: ['#50a3ba', '#eac736', '#d94e5d']
-                },
-                textStyle: {
-                    color: '#fff'
-                }
-            },
-            geo: {
-                map: '台灣',
-                roam: true,
-                label: {
-                    show: true,
-                    color: '#fff',
-                    fontSize: 12
-                },
-                itemStyle: {
-                    areaColor: '#1E90FF',
-                    borderColor: '#4ab2e5',
-                    borderWidth: 1,
-                    shadowColor: 'rgba(0, 0, 0, 0.5)',
-                    shadowBlur: 10
-                },
-                emphasis: {
-                    label: {
-                        color: '#fff',
-                        fontWeight: 'bold'
-                    },
-                    itemStyle: {
-                        areaColor: '#2B91B7'
-                    }
-                }
-            },
-            series: [{
-                name: '數據',
-                type: 'scatter',
-                coordinateSystem: 'geo',
-                data: chartData,
-                symbolSize: function(val) {
-                    // 根據數值大小調整點的大小
-                    return Math.max(8, Math.min(val[2] / (maxValue / 20), 40));
-                },
-                encode: {
-                    value: 2
-                },
-                label: {
-                    formatter: '{b}',
-                    position: 'right',
-                    show: false
-                },
-                itemStyle: {
-                    color: '#ddb926',
-                    shadowBlur: 10,
-                    shadowColor: 'rgba(255, 255, 255, 0.5)'
-                },
-                emphasis: {
-                    label: {
-                        show: true
-                    },
-                    itemStyle: {
-                        borderColor: '#fff',
-                        borderWidth: 2
-                    }
-                }
-            }]
-        };
-        
-        myChart.setOption(option, true);
-        
-        // 窗口大小改變時重新調整圖表大小
-        window.addEventListener('resize', function() {
-            myChart.resize();
+            };
+            
+            oReq.onerror = function(error) {
+                console.error('Error loading Excel file:', error);
+                reject(error);
+            };
+            
+            oReq.send();
         });
     }
 
-    // 頁面加載完成後執行
-    document.addEventListener('DOMContentLoaded', function() {
-        // 註冊台灣地圖
-        $.get('https://slimmay.github.io/storeTW/twCounty2010.json')
-            .done(function(taiwanJson) {
-                echarts.registerMap('台灣', taiwanJson);
-                // 加載Excel數據
-                loadExcelData();
-            })
-            .fail(function(error) {
-                console.error('加載地圖數據失敗:', error);
-                document.getElementById('loading').textContent = '加載地圖失敗，請檢查網絡連接後刷新頁面';
+    // 初始化圖表
+    async function initChart() {
+        try {
+            const data = await loadExcelData();
+            
+            // 設置圖表選項
+            option = {
+                backgroundColor: 'transparent',
+                title: {
+                    text: '實物銀行服務數據統計',
+                    left: 'center',
+                    textStyle: {
+                        color: '#fff'
+                    }
+                },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        return params.name + ' : ' + params.value[2];
+                    }
+                },
+                visualMap: {
+                    min: 0,
+                    max: 100,
+                    text: ['高', '低'],
+                    realtime: false,
+                    calculable: true,
+                    inRange: {
+                        color: ['#50a3ba', '#eac736', '#d94e5d']
+                    },
+                    textStyle: {
+                        color: '#fff'
+                    }
+                },
+                geo: {
+                    map: '台灣',
+                    roam: true,
+                    label: {
+                        show: true,
+                        color: '#fff',
+                        fontSize: 12
+                    },
+                    itemStyle: {
+                        areaColor: '#0f2d5d',
+                        borderColor: '#1e90ff',
+                        borderWidth: 1
+                    },
+                    emphasis: {
+                        label: {
+                            color: '#fff',
+                            fontSize: 14,
+                            fontWeight: 'bold'
+                        },
+                        itemStyle: {
+                            areaColor: '#2a5caa'
+                        }
+                    }
+                },
+                series: [
+                    {
+                        name: '服務數據',
+                        type: 'scatter',
+                        coordinateSystem: 'geo',
+                        data: data,
+                        symbolSize: 12,
+                        encode: {
+                            value: 2
+                        },
+                        itemStyle: {
+                            color: '#ffeb3b'
+                        },
+                        emphasis: {
+                            itemStyle: {
+                                color: '#ff0'
+                            }
+                        }
+                    }
+                ]
+            };
+            
+            // 使用配置項顯示圖表
+            myChart.setOption(option);
+            
+            // 監聽視窗大小變化，自適應調整圖表大小
+            window.addEventListener('resize', function() {
+                myChart.resize();
             });
+            
+        } catch (error) {
+            console.error('初始化圖表失敗:', error);
+        }
+    }
+
+    // 加載台灣地圖數據並初始化圖表
+    $.get('https://slimMay.github.io/storeTW/twCounty2010.json', function(taiwanJson) {
+        echarts.registerMap('台灣', taiwanJson);
+        initChart();
     });
-</script>
+
+// 2017年核定金額
+var d1 = {
+    '高雄市': 467136 ,
+    '台中市': 688800,
+    '屏東縣': 152010,
+    '台南市': 212628,
+    '桃園市': 514408,
+    '嘉義縣': 354384,
+     '全台':499680
+};
+
+
+// 2018年核定金额
+var d2 = {
+    '高雄市': 1273074,
+    '台中市': 800400,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 967080,
+    '桃園市': 0,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 0,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+// 2019年核定金额
+var d3 = {
+    '高雄市': 998870,
+    '台中市': 993480,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 0,
+    '桃園市': 998870,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 0,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+
+// 2020年核定金额 
+var d4 = {
+    '高雄市': 1006000,
+    '台中市': 0,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 0,
+    '桃園市': 1084700,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 904458,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+// 2021年核定金额 
+var d5 = {
+    '高雄市': 747500,
+    '台中市': 0,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 0,
+    '桃園市': 749394,
+    '花蓮縣': 749512,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 749698,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+// 2022年核定金额 
+var d6 = {
+    '高雄市': 1007640,
+    '台中市': 1484100,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 0,
+    '桃園市': 1251020,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 1005940,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+// 2023年核定金额 
+var d7 = {
+    '高雄市': 0,
+    '台中市': 0,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 1377100,
+    '桃園市': 1405740,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 1707240,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 513400,
+    '金門縣': 0
+};
+// 2024年核定金额 
+var d8 = {
+    '高雄市': 0,
+    '台中市': 0,
+    '新北市': 0,
+    '屏東縣': 800160,
+    '台南市': 1141340,
+    '桃園市': 1138644,
+    '花蓮縣': 1140660,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 1139156,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+
+
+
+/*==========   受益戶數  A ===========*/
+
+// 受益戶數數據
+// 2017年受益戶數
+var A1 = {
+    '高雄市': 214,
+    '台中市': 1984,
+    '新北市': 0,
+    '屏東縣': 69,
+    '台南市': 560,
+    '桃園市': 554,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 591,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0,
+    '全台': 850,
+};
+
+// 2018年受益戶數
+var A2 = {
+    '高雄市': 1364,
+    '台中市': 2143,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 1259,
+    '桃園市': 0,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 0,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+
+// 2019年受益戶數 
+var A3 = {
+    '高雄市': 675,
+    '台中市': 2309,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 0,
+    '桃園市': 366,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 0,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+
+
+
+// 2020年受益戶數 (新增的第三年數據)
+var A4 = {
+    '高雄市': 582,
+    '台中市': 0,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 0,
+    '桃園市': 378,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 2381,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+
+// 2021年受益戶數 
+var A5 = {
+    '高雄市': 7269,
+    '台中市': 0,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 0,
+    '桃園市': 740,
+    '花蓮縣': 1180,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 21406,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+
+// 2022年受益戶數 
+var A6 = {
+    '高雄市': 1081,
+    '台中市': 338,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 0,
+    '桃園市': 766,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 584,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+
+// 2023年受益戶數 
+var A7 = {
+    '高雄市': 0,
+    '台中市': 0,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 750,
+    '桃園市': 500,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 650,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 2000,
+    '金門縣': 0
+};
+
+// 2024年受益戶數 
+var A8 = {
+    '高雄市': 0,
+    '台中市': 0,
+    '新北市': 0,
+    '屏東縣': 174,
+    '台南市': 701,
+    '桃園市': 3426,
+    '花蓮縣': 10669,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 20018,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+
+/*==========   受益人次 B  ===========*/
+// 受益人次數據
+// 2017年受益人次
+var B1 = {
+    '高雄市': 598,
+    '台中市': 2709,
+    '新北市': 0,
+    '屏東縣': 188,
+    '台南市': 47000,
+    '桃園市': 832,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 1858,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+
+// 2018年受益人次
+var B2 = {
+    '高雄市': 0,
+    '台中市': 0,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 0,
+    '桃園市': 0,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 0,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+
+// 2019年受益人次 (新增的第三年數據)
+var B3 = {
+    '高雄市': 0,
+    '台中市': 0,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 0,
+    '桃園市': 0,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 0,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+
+// 2020年受益人次 (新增的第三年數據)
+var B4 = {
+    '高雄市': 0,
+    '台中市': 0,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 0,
+    '桃園市': 0,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 0,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+
+// 受益同住人數據
+// 2017年受益同住人
+var C1 = {
+    '高雄市': 0,
+    '台中市': 0,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 0,
+    '桃園市': 0,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 0,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+
+// 2018年受益同住人
+var C2 = {
+    '高雄市': 0,
+    '台中市': 0,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 0,
+    '桃園市': 0,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 0,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+
+// 2019年受益同住人 (新增的第三年數據)
+var C3 = {
+    '高雄市': 0,
+    '台中市': 0,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 0,
+    '桃園市': 0,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 0,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+// 2020年受益同住人 (新增的第三年數據)
+var C4 = {
+    '高雄市': 0,
+    '台中市': 0,
+    '新北市': 0,
+    '屏東縣': 0,
+    '台南市': 0,
+    '桃園市': 0,
+    '花蓮縣': 0,
+    '台北市': 0,
+    '台東縣': 0,
+    '彰化縣': 0,
+    '雲林縣': 0,
+    '南投縣': 0,
+    '基隆市': 0,
+    '新竹縣': 0,
+    '苗栗縣': 0,
+    '嘉義縣': 0,
+    '宜蘭縣': 0,
+    '嘉義市': 0,
+    '新竹市': 0,
+    '澎湖縣': 0,
+    '金門縣': 0
+};
+
+// 計算每年核定金額總和
+var totalAmounts = {
+    '2017': Object.values(d1).reduce((a, b) => a + b, 0),
+    '2018': Object.values(d2).reduce((a, b) => a + b, 0),
+    '2019': Object.values(d3).reduce((a, b) => a + b, 0),
+    '2020': Object.values(d4).reduce((a, b) => a + b, 0),
+    '2021': Object.values(d5).reduce((a, b) => a + b, 0),
+    '2022': Object.values(d6).reduce((a, b) => a + b, 0),
+    '2023': Object.values(d7).reduce((a, b) => a + b, 0),
+    '2024': Object.values(d8).reduce((a, b) => a + b, 0)
+};
+
+// 計算每年受益戶數總和
+var AtotalAmounts = {
+    '2017': Object.values(A1).reduce((a, b) => a + b, 0),
+    '2018': Object.values(A2).reduce((a, b) => a + b, 0),
+    '2019': Object.values(A3).reduce((a, b) => a + b, 0),
+    '2020': Object.values(A4).reduce((a, b) => a + b, 0),
+    '2021': Object.values(A5).reduce((a, b) => a + b, 0),
+    '2022': Object.values(A6).reduce((a, b) => a + b, 0),
+    '2023': Object.values(A7).reduce((a, b) => a + b, 0),
+    '2024': Object.values(A8).reduce((a, b) => a + b, 0)
+};
+
+
+
+var colors = [
+    "#ff0076", "#F46E36", "#04B9FF", "#5DBD32", "#FFC809", 
+    "#1DE9B6", "#BDA29A", "#6E7074", "#546570", "#C4CCD3"
+];
+
+var year = ["2017","2018", "2019", "2020", "2021", "2022", "2023", "2024"]; // 添加第四年
+var mapData = [[], [], [], [], [], [], [], []]; // 四年份的数据
+var pinData = [
+    // 受益戶數数据 (第一种Pin数据)
+    [[], [], [], [],[], [], [], []],
+    // 受益人次数据 (第二种Pin数据)
+    [[], [], [], [],[], [], [], []],
+    // 受益同住人数据 (第三种Pin数据)
+    [[], [], [], [], [], [], [], []]
+];
+
+// 定义显示哪种Pin数据的索引 (0:受益戶數, 1:受益人次, 2:受益同住人)
+var currentPinType = 0;
+
+/*柱子Y名称*/
+var categoryData = [];
+var barData = [];
+
+// 准备核定金额数据
+for (var key in geoCoordMap) {
+   // 2017年数据
+    mapData[0].push({
+        "year": '2017',
+        "name": key,
+        "value": d1[key] || 0,
+    });
+    // 2018年数据
+    mapData[1].push({
+        "year": '2018',
+        "name": key,
+        "value": d2[key] || 0,
+    });
+    
+    // 2019年数据
+    mapData[2].push({
+        "year": '2019',
+        "name": key,
+        "value": d3[key] || 0,
+    });
+    
+    // 2020年数据
+    mapData[3].push({
+        "year": '2020',
+        "name": key,
+        "value": d4[key] || 0,
+    });
+
+    // 2021年数据
+    mapData[4].push({
+        "year": '2021',
+        "name": key,
+        "value": d5[key] || 0,
+    });
+
+    // 2022年数据
+    mapData[5].push({
+        "year": '2022',
+        "name": key,
+        "value": d6[key] || 0,
+    });
+
+    // 2023年数据
+    mapData[6].push({
+        "year": '2023',
+        "name": key,
+        "value": d7[key] || 0,
+    });
+
+        // 2024年数据
+    mapData[7].push({
+        "year": '2024',
+        "name": key,
+        "value": d8[key] || 0,
+    });
+    
+  /* =======       准备各种Pin数据      ======== */
+
+ 
+    // 受益戶數
+    pinData[0][0].push({
+        "year": '2017',
+        "name": key,
+        "value": A1[key] || 0,
+    });
+    pinData[0][1].push({
+        "year": '2018',
+        "name": key,
+        "value": A2[key] || 0,
+    });
+    pinData[0][2].push({
+        "year": '2019',
+        "name": key,
+        "value": A3[key] || 0,
+    });
+    pinData[0][3].push({
+        "year": '2020',
+        "name": key,
+        "value": A4[key] || 0,
+    });
+    pinData[0][4].push({
+        "year": '2021',
+        "name": key,
+        "value": A5[key] || 0,
+    });
+    pinData[0][5].push({
+        "year": '2022',
+        "name": key,
+        "value": A6[key] || 0,
+    });
+    pinData[0][6].push({
+        "year": '2023',
+        "name": key,
+        "value": A7[key] || 0,
+    });
+    pinData[0][7].push({
+        "year": '2024',
+        "name": key,
+        "value": A8[key] || 0,
+    });
+    // 受益人次
+    pinData[1][0].push({
+        "year": '2017',
+        "name": key,
+        "value": B1[key] || 0,
+    });
+    pinData[1][1].push({
+        "year": '2018',
+        "name": key,
+        "value": B2[key] || 0,
+    });
+    pinData[1][2].push({
+        "year": '2019',
+        "name": key,
+        "value": B3[key] || 0,
+    });
+    pinData[1][3].push({
+        "year": '2020',
+        "name": key,
+        "value": B4[key] || 0,
+    });
+    
+    // 受益同住人
+    pinData[2][0].push({
+        "year": '2017',
+        "name": key,
+        "value": C1[key] || 0,
+    });
+    pinData[2][1].push({
+        "year": '2018',
+        "name": key,
+        "value": C2[key] || 0,
+    });
+    pinData[2][2].push({
+        "year": '2019',
+        "name": key,
+        "value": C3[key] || 0,
+    });
+    pinData[2][3].push({
+        "year": '2020',
+        "name": key,
+        "value": C4[key] || 0,
+    });
+}
+
+// 排序并准备柱状图数据
+for (var i = 0; i < mapData.length; i++) {
+    mapData[i].sort(function(a, b) {
+        return a.value - b.value;
+    });
+    
+    barData.push([]);
+    categoryData.push([]);
+    
+    for (var j = 0; j < mapData[i].length; j++) {
+        barData[i].push(mapData[i][j].value);
+        categoryData[i].push(mapData[i][j].name);
+    }
+}
+
+// 定义Pin类型的标题
+var pinTypeTitles = ["受益戶數", "受益人次", "受益同住人"];
+
+// 定义切换Pin类型的函数
+function switchPinType(type) {
+    currentPinType = type;
+    myChart.setOption(optionXyMap01);
+}
+
+// 添加切换按钮
+var buttonContainer = document.createElement('div');
+buttonContainer.style.position = 'absolute';
+buttonContainer.style.left = '10px';
+buttonContainer.style.bottom = '50px';
+buttonContainer.style.zIndex = '999';
+
+for (var i = 0; i < pinTypeTitles.length; i++) {
+    var button = document.createElement('button');
+    button.innerHTML = pinTypeTitles[i];
+    button.style.margin = '5px';
+    button.style.padding = '5px 10px';
+    button.style.backgroundColor = '#2B91B7';
+    button.style.color = '#fff';
+    button.style.border = 'none';
+    button.style.borderRadius = '3px';
+    button.style.cursor = 'pointer';
+    button.dataset.type = i;
+    
+    button.addEventListener('click', function() {
+        switchPinType(parseInt(this.dataset.type));
+    });
+    
+    buttonContainer.appendChild(button);
+}
+
+document.body.appendChild(buttonContainer);
+
+$.getJSON(uploadedDataURL, function(geoJson) {
+    echarts.registerMap('TW', geoJson);
+    
+    var convertData = function(data) {
+        var res = [];
+        for (var i = 0; i < data.length; i++) {
+            var geoCoord = geoCoordMap[data[i].name];
+            if (geoCoord && data[i].value > 0) {
+                res.push({
+                    name: data[i].name,
+                    value: geoCoord.concat(data[i].value)
+                });
+            }
+        }
+        return res;
+    };
+    
+    optionXyMap01 = {
+        timeline: {
+            data: year,
+            axisType: 'category',
+            autoPlay: true,
+            playInterval: 3000,
+            left: '10%',
+            right: '10%',
+            bottom: '3%',
+            width: '80%',
+            label: {
+                normal: {
+                    textStyle: {
+                        color: '#ddd',
+                        fontSize:15
+                    }
+                },
+                emphasis: {
+                    textStyle: {
+                        color: '#fff',
+                        fontSize:20
+                    }
+                }
+            },
+            symbolSize: 18,
+            lineStyle: {
+                color: '#555'
+            },
+            checkpointStyle: {
+                borderColor: '#777',
+                borderWidth: 2
+            },
+            controlStyle: {
+                showNextBtn: true,
+                showPrevBtn: true,
+                normal: {
+                    color: '#666',
+                    borderColor: '#666'
+                },
+                emphasis: {
+                    color: '#aaa',
+                    borderColor: '#aaa'
+                }
+            }
+        },
+        baseOption: {
+            animation: true,
+            animationDuration: 1000,
+            animationEasing: 'cubicInOut',
+            animationDurationUpdate: 1000,
+            animationEasingUpdate: 'cubicInOut',
+            grid: {
+                right: '10%',
+                top: '11%',
+                bottom: '10%',
+                width: '20%'
+            },
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: {
+                    type: 'shadow',
+                    shadowStyle: {
+                        color: 'rgba(150,150,150,0.1)'
+                    }
+                }
+            },
+            geo: {
+                    show: true,
+                    map: 'TW',
+                    layoutCenter: ['40%', '48%'],
+                    roam: true,
+                    layoutSize: '111%',
+                    zoom: 1,
+                    aspectScale: 1, //长宽比
+                    center: [121, 23.5],  //中心点
+                    label: {
+                        emphasis: {
+                            show: false
+                        }
+                    },
+                itemStyle: {
+                    normal: {
+                        borderColor: 'rgba(147, 235, 248, 1)',
+                        borderWidth: 1,
+                        areaColor: {
+                            type: 'radial',
+                            x: 0.5,
+                            y: 0.5,
+                            r: 0.8,
+                            colorStops: [{
+                                offset: 0,
+                                color: 'rgba(147, 235, 248, 0)'
+                            }, {
+                                offset: 1,
+                                color: 'rgba(147, 235, 248, .2)'
+                            }],
+                            globalCoord: false
+                        },
+                        shadowColor: 'rgba(128, 217, 248, 1)',
+                        shadowOffsetX: -2,
+                        shadowOffsetY: 2,
+                        shadowBlur: 10
+                    },
+                    emphasis: {
+                        areaColor: '#389BB7',
+                        borderWidth: 0
+                    }
+                }
+            }
+        },
+        options: []
+    };
+
+    for (var n = 0; n < year.length; n++) {
+        var formattedAmount = totalAmounts[year[n]].toLocaleString();
+		var AformattedAmount = AtotalAmounts[year[n]].toLocaleString();
+        
+
+        optionXyMap01.options.push({
+           // backgroundColor: '#000',
+            title: [
+                {
+                    text: year[n] + ' 實物銀行 服務數據統計',
+                    left: '18%',
+                    top: '2%',
+                    textStyle: {
+                        color: '#fff',
+                        fontSize: 32
+                    }
+                },
+                {
+                    id: 'statistic',
+                    text: year[n] + " 核定金額 總計 :",
+                    left: '70%',
+                    top: '4%',
+                    textStyle: {
+                        color: '#fff',
+                        fontSize: 26
+                    }
+                },
+                {
+                    id: 'totalAmount',
+                    text: "$ " + formattedAmount,
+                    left: '81%',
+                    top: '4%',
+                    textStyle: {
+                        color: '#FFC809',
+                        fontSize: 30
+                    }
+                },
+                {
+                    id: 'pinType',
+                    text: pinTypeTitles[currentPinType] + " 總計",
+                    left: '20%',
+                    top: '11.5%',
+                    textStyle: {
+                        color: colors[currentPinType],
+                        fontSize: 26
+                    }
+                },
+                {
+                    id: 'pinTypeAmount-A',
+                    text: AformattedAmount +"戶" ,
+                    left: '20%',
+                    top: '15%',
+                    textStyle: {
+                        color: colors[currentPinType],
+                        fontSize: 30
+                    }
+                }
+            ],
+            xAxis: {
+                type: 'value',
+                scale: true,
+                position: 'top',
+                min: 0,
+                boundaryGap: false,
+                splitLine: {
+                    show: false
+                },
+                axisLine: {
+                    show: false
+                },
+                axisTick: {
+                    show: false
+                },
+                axisLabel: {
+                    margin: 2,
+                    textStyle: {
+                        color: '#aaa'
+                    }
+                }
+            },
+            yAxis: {
+                type: 'category',
+                axisLine: {
+                    show: true,
+                    lineStyle: {
+                        color: '#ddd'
+                    }
+                },
+                axisTick: {
+                    show: false,
+                    lineStyle: {
+                        color: '#ddd'
+                    }
+                },
+                axisLabel: {
+                    interval: 0,
+                    textStyle: {
+                        color: '#ddd'
+                    }
+                },
+                data: categoryData[n]
+            },
+            series: [
+                {
+                    // 地图底图
+                    type: 'map',
+                    map: 'TW',
+                    geoIndex: 0,
+                    aspectScale: 0.75,
+                    showLegendSymbol: false,
+                    label: {
+                        normal: {
+                            show: false
+                        },
+                        emphasis: {
+                            show: false,
+                            textStyle: {
+                                color: '#fff'
+                            }
+                        }
+                    },
+                    roam: true,
+                    itemStyle: {
+                        normal: {
+                            areaColor: '#031525',
+                            borderColor: '#FFFFFF',
+                        },
+                        emphasis: {
+                            areaColor: '#2B91B7'
+                        }
+                    },
+                    animation: false,
+                    data: mapData[n]
+                },
+                {
+                    // 核定金额气泡
+                    name: '核定金额',
+                    type: 'effectScatter',
+                    coordinateSystem: 'geo',
+                    data: convertData(mapData[n].sort(function(a, b) {
+                        return b.value - a.value;
+                    })),
+                    symbolSize: function(val) {
+                        return Math.sqrt(val[2]) / 40;
+                    },
+                    showEffectOn: 'render',
+                    rippleEffect: {
+                        brushType: 'stroke'
+                    },
+                    hoverAnimation: true,
+                   //label: {
+                   //     normal: {
+                   //         formatter: '{b}: {c}',
+                   //         position: 'right',
+                   //         show: true
+                   //     }
+                   // },
+                    itemStyle: {
+                        normal: {
+                            color: '#FFC809',
+                            shadowBlur: 5,
+                            shadowColor: '#FFC809'
+                        }
+                    },
+                    zlevel: 1
+                },
+                {
+                    // 不同类型的Pin数据
+                    name: pinTypeTitles[currentPinType],
+                    type: 'scatter',                    
+                    coordinateSystem: 'geo',
+                    symbol: 'pin', //气泡
+                    symbolSize: function(val) {
+                             return 32;
+                         },
+                    data: convertData(pinData[currentPinType][n].sort(function(a, b) {
+                        return b.value - a.value;
+                    })),
+                    symbolSize: function(val) {
+                        return Math.sqrt(val[2]) * 2.6;
+                    },
+                    label: {
+                        normal: {
+                            //formatter: function(params) {
+                            //    return params.name + ': ' + params.value[2];
+                            //},
+                            formatter: function(params) {
+                                return params.value[2];
+                            },
+                            //position: 'top',
+                            show: true,
+                            textStyle: {
+                                color: '#fff',
+                                fontSize: 15
+                            }
+                        }
+                    },
+                    itemStyle: {
+                        normal: {
+                            color: colors[currentPinType],
+                            shadowBlur: 10,
+                            shadowColor: colors[currentPinType]
+                        }
+                    },
+                    zlevel: 2
+                },
+                {
+                    // 右侧柱状图
+                    zlevel: 1.5,
+                    type: 'bar',
+                    symbol: 'none',
+                    itemStyle: {
+                        normal: {
+                            color: '#FFC809'
+                        }
+                    },
+                    data: barData[n]
+                }
+            ]
+        });
+    }
+    
+    myChart.setOption(optionXyMap01);
+    
+    // 添加窗口大小调整监听器
+    window.addEventListener('resize', function() {
+        myChart.resize();
+    });
+});
+    </script>
 </body>
 </html>
+
