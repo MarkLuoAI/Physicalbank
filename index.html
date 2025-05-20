@@ -5,7 +5,6 @@
     <title>實物銀行 服務數據統計</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <style>
     body {
@@ -22,192 +21,47 @@
 <body>
     <div id="main" style="width: 100%; height: 100vh;"></div>
     <script>
-    var chartDom = document.getElementById("main");
-    var myChart = echarts.init(chartDom);
-    var option;
+       var chartDom = document.getElementById("main");
+var myChart = echarts.init(chartDom);
+var option;
 
-    // 城市坐标数据
-    var geoCoordMap = {
-        '高雄市': [120.63397253230777, 22.96510807924244],
-        '台中市': [120.88303557156821, 24.22976722061671],
-        '新北市': [121.56233791721156, 24.912096428815047],
-        '屏東縣': [120.644845, 22.542893],
-        '台南市': [120.32621160351262, 23.167583572934454],
-        '桃園市': [121.22942515940727, 24.908913064300542],
-        '花蓮縣': [121.427729, 23.783188],
-        '台北市': [121.51185772382642, 25.02771294110296],
-        '台東縣': [121.054566, 22.872413],
-        '彰化縣': [120.472066, 23.990594],
-        '雲林縣': [120.37140692500215, 23.7220205712259],
-        '南投縣': [120.98222282177481, 23.862057901460222],
-        '基隆市': [121.7090375475519, 25.115942332151228],
-        '新竹縣': [121.15845951265977, 24.676877878638546],
-        '苗栗縣': [120.92111693825872, 24.493472949565177],
-        '嘉義縣': [120.6384686106581, 23.49204553894098],
-        '宜蘭縣': [121.6827471803587, 24.55390323104749],
-        '新竹市': [120.964686, 24.803945],
-        '嘉義市': [120.472462, 23.480075],
-        '澎湖縣': [119.584570, 23.569846],
-        '金門縣': [118.318370, 24.436793],
-        '連江縣': [119.539704, 26.197584]
-    };
+// 初始化数据容器
+var yearData = {};
+var years = [];
+var AtotalAmounts = {};
+var pinData = {
+    'pin1': [] // 将在加载数据后填充
+};
 
-    // 從Excel讀取數據
-    function loadExcelData() {
-        return new Promise((resolve, reject) => {
-            const url = 'data.xlsx';
-            const oReq = new XMLHttpRequest();
-            oReq.open('GET', url, true);
-            oReq.responseType = 'arraybuffer';
-            
-            oReq.onload = function(e) {
-                try {
-                    const arraybuffer = oReq.response;
-                    const data = new Uint8Array(arraybuffer);
-                    const workbook = XLSX.read(data, {type: 'array'});
-                    
-                    // 獲取第一個工作表
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
-                    
-                    // 將工作表轉換為JSON
-                    const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
-                    
-                    // 獲取表頭和數據
-                    const headers = jsonData[0];
-                    const rows = jsonData.slice(1);
-                    
-                    // 轉換為需要的格式
-                    const result = [];
-                    rows.forEach(row => {
-                        if (row.length >= 2) {
-                            const city = row[0];
-                            const value = row[1];
-                            if (city && geoCoordMap[city]) {
-                                result.push({
-                                    name: city,
-                                    value: geoCoordMap[city].concat([value])
-                                });
-                            }
-                        }
-                    });
-                    
-                    resolve(result);
-                } catch (error) {
-                    console.error('Error processing Excel file:', error);
-                    reject(error);
-                }
-            };
-            
-            oReq.onerror = function(error) {
-                console.error('Error loading Excel file:', error);
-                reject(error);
-            };
-            
-            oReq.send();
-        });
-    }
+var uploadedDataURL = "https://slimMay.github.io/storeTW/twCounty2010.json";
 
-    // 初始化圖表
-    async function initChart() {
-        try {
-            const data = await loadExcelData();
-            
-            // 設置圖表選項
-            option = {
-                backgroundColor: 'transparent',
-                title: {
-                    text: '實物銀行服務數據統計',
-                    left: 'center',
-                    textStyle: {
-                        color: '#fff'
-                    }
-                },
-                tooltip: {
-                    trigger: 'item',
-                    formatter: function(params) {
-                        return params.name + ' : ' + params.value[2];
-                    }
-                },
-                visualMap: {
-                    min: 0,
-                    max: 100,
-                    text: ['高', '低'],
-                    realtime: false,
-                    calculable: true,
-                    inRange: {
-                        color: ['#50a3ba', '#eac736', '#d94e5d']
-                    },
-                    textStyle: {
-                        color: '#fff'
-                    }
-                },
-                geo: {
-                    map: '台灣',
-                    roam: true,
-                    label: {
-                        show: true,
-                        color: '#fff',
-                        fontSize: 12
-                    },
-                    itemStyle: {
-                        areaColor: '#0f2d5d',
-                        borderColor: '#1e90ff',
-                        borderWidth: 1
-                    },
-                    emphasis: {
-                        label: {
-                            color: '#fff',
-                            fontSize: 14,
-                            fontWeight: 'bold'
-                        },
-                        itemStyle: {
-                            areaColor: '#2a5caa'
-                        }
-                    }
-                },
-                series: [
-                    {
-                        name: '服務數據',
-                        type: 'scatter',
-                        coordinateSystem: 'geo',
-                        data: data,
-                        symbolSize: 12,
-                        encode: {
-                            value: 2
-                        },
-                        itemStyle: {
-                            color: '#ffeb3b'
-                        },
-                        emphasis: {
-                            itemStyle: {
-                                color: '#ff0'
-                            }
-                        }
-                    }
-                ]
-            };
-            
-            // 使用配置項顯示圖表
-            myChart.setOption(option);
-            
-            // 監聽視窗大小變化，自適應調整圖表大小
-            window.addEventListener('resize', function() {
-                myChart.resize();
-            });
-            
-        } catch (error) {
-            console.error('初始化圖表失敗:', error);
-        }
-    }
+// 城市坐标数据
+var geoCoordMap = {
+    '高雄市': [120.63397253230777, 22.96510807924244],
+    '台中市': [120.88303557156821, 24.22976722061671],
+    '新北市': [121.56233791721156, 24.912096428815047],
+    '屏東縣': [120.644845, 22.542893],
+    '台南市': [120.32621160351262, 23.167583572934454],
+    '桃園市': [121.22942515940727, 24.908913064300542],
+    '花蓮縣': [121.427729, 23.783188],
+    '台北市': [121.51185772382642, 25.02771294110296],
+    '台東縣': [121.054566, 22.872413],
+    '彰化縣': [120.472066, 23.990594],
+    '雲林縣': [120.37140692500215, 23.7220205712259],
+    '南投縣': [120.98222282177481, 23.862057901460222],
+    '基隆市': [121.7090375475519, 25.115942332151228],
+    '新竹縣': [121.15845951265977, 24.676877878638546],
+    '苗栗縣': [120.92111693825872, 24.493472949565177],
+    '嘉義縣': [120.6384686106581, 23.49204553894098],
+    '宜蘭縣': [121.6827471803587, 24.55390323104749],
+    '嘉義市': [120.44380244177937, 23.49123253156815],
+    '新竹市': [120.97063102545773, 24.807783800541078],
+    '澎湖縣': [119.61676029530447, 23.58029482756267],
+    '金門縣': [118.38915926697726, 24.450510475737918],
+    '全台': [121.944845, 22.542893]
+};
 
-    // 加載台灣地圖數據並初始化圖表
-    $.get('https://slimMay.github.io/storeTW/twCounty2010.json', function(taiwanJson) {
-        echarts.registerMap('台灣', taiwanJson);
-        initChart();
-    });
-
-// 2017年核定金額
+// 2017年核定金额
 var d1 = {
     '高雄市': 467136 ,
     '台中市': 688800,
@@ -830,7 +684,7 @@ var colors = [
     "#1DE9B6", "#BDA29A", "#6E7074", "#546570", "#C4CCD3"
 ];
 
-var year = ["2017","2018", "2019", "2020", "2021", "2022", "2023", "2024"]; // 添加第四年
+var year = []; // 将在加载数据后填充 // 添加第四年
 var mapData = [[], [], [], [], [], [], [], []]; // 四年份的数据
 var pinData = [
     // 受益戶數数据 (第一种Pin数据)
@@ -1017,6 +871,170 @@ function switchPinType(type) {
     currentPinType = type;
     myChart.setOption(optionXyMap01);
 }
+
+// 加载CSV数据并初始化图表
+function loadCSVData() {
+    return new Promise((resolve, reject) => {
+        fetch('data1.csv')
+            .then(response => response.text())
+            .then(csvData => {
+                // 解析CSV数据
+                const lines = csvData.split('\n');
+                
+                // 处理数据
+                for (let i = 1; i < lines.length; i++) {
+                    if (!lines[i].trim()) continue;
+                    
+                    const values = lines[i].split(',');
+                    const year = values[0].trim();
+                    const city = values[1].trim();
+                    const amount = parseFloat(values[2]) || 0;
+                    
+                    // 初始化年份数据
+                    if (!yearData[year]) {
+                        yearData[year] = {};
+                        years.push(year);
+                        
+                        // 初始化所有城市为0
+                        Object.keys(geoCoordMap).forEach(city => {
+                            yearData[year][city] = 0;
+                        });
+                    }
+                    
+                    // 设置城市数据
+                    yearData[year][city] = amount;
+                }
+                
+                // 对年份进行排序
+                years.sort();
+                year = years; // 更新年份数组
+                
+                // 计算每年的总金额
+                years.forEach(y => {
+                    AtotalAmounts[y] = Object.values(yearData[y]).reduce((sum, val) => sum + val, 0);
+                });
+                
+                // 初始化pinData
+                pinData.pin1 = years.map(y => {
+                    const yearDataObj = Object.entries(yearData[y])
+                        .filter(([_, value]) => value > 0) // 只包含金额大于0的城市
+                        .map(([name, value]) => ({
+                            name,
+                            value: geoCoordMap[name] ? geoCoordMap[name].concat([value]) : []
+                        }));
+                    return yearDataObj.sort((a, b) => b.value[2] - a.value[2]);
+                });
+                
+                resolve();
+            })
+            .catch(error => {
+                console.error('Error loading CSV data:', error);
+                reject(error);
+            });
+    });
+}
+
+// 初始化图表
+function initChart() {
+    // 确保在数据加载完成后初始化图表
+    loadCSVData().then(() => {
+        // 确保年份数据已加载
+        if (years.length === 0) {
+            console.error('No data loaded from CSV');
+            return;
+        }
+        // 更新图表选项
+        optionXyMap01.timeline.data = year;
+        
+        // 清空现有选项
+        optionXyMap01.options = [];
+        
+        // 为每一年创建选项
+        years.forEach((y, n) => {
+            var AformattedAmount = AtotalAmounts[y] ? AtotalAmounts[y].toLocaleString() : '0';
+            
+            optionXyMap01.options.push({
+                title: {
+                    text: y + '年 實物銀行 服務數據統計',
+                    subtext: '總核定金額: ' + AformattedAmount + ' 元',
+                    left: 'center',
+                    top: 20,
+                    textStyle: {
+                        color: '#fff',
+                        fontSize: 24
+                    },
+                    subtextStyle: {
+                        color: '#ddd',
+                        fontSize: 16,
+                        padding: [10, 0, 0, 0]
+                    }
+                },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        if (params.seriesType === 'map') {
+                            return params.name + ': ' + (params.value ? params.value.toLocaleString() + ' 元' : '0 元');
+                        }
+                        return params.name + ': ' + (params.value ? params.value[2].toLocaleString() + ' 元' : '0 元');
+                    }
+                },
+                visualMap: {
+                    min: 0,
+                    max: 2000000,
+                    text: ['高', '低'],
+                    realtime: false,
+                    calculable: true,
+                    inRange: {
+                        color: ['#50a3ba', '#eac736', '#d94e5d']
+                    },
+                    textStyle: {
+                        color: '#ddd'
+                    }
+                },
+                series: [
+                    {
+                        name: '核定金额',
+                        type: 'map',
+                        map: 'TW',
+                        roam: true,
+                        label: {
+                            show: true,
+                            color: '#fff'
+                        },
+                        emphasis: {
+                            label: {
+                                color: '#fff'
+                            }
+                        },
+                        data: Object.entries(yearData[y]).map(([name, value]) => ({
+                            name,
+                            value
+                        }))
+                    }
+                ]
+            });
+        });
+        
+        // 设置图表选项
+        myChart.setOption(optionXyMap01);
+    });
+}
+
+// 页面加载完成后初始化图表
+document.addEventListener('DOMContentLoaded', function() {
+    // 注册地图数据
+    fetch(uploadedDataURL)
+        .then(response => response.json())
+        .then(data => {
+            // 注册地图
+            echarts.registerMap('TW', data);
+            // 初始化图表
+            initChart();
+        })
+        .catch(error => {
+            console.error('Error loading map data:', error);
+        });
+});
 
 // 添加切换按钮
 var buttonContainer = document.createElement('div');
@@ -1303,36 +1321,10 @@ $.getJSON(uploadedDataURL, function(geoJson) {
                             areaColor: '#031525',
                             borderColor: '#FFFFFF',
                         },
-                        emphasis: {
+emphasis: {
                             areaColor: '#2B91B7'
                         }
                     },
-                    animation: false,
-                    data: mapData[n]
-                },
-                {
-                    // 核定金额气泡
-                    name: '核定金额',
-                    type: 'effectScatter',
-                    coordinateSystem: 'geo',
-                    data: convertData(mapData[n].sort(function(a, b) {
-                        return b.value - a.value;
-                    })),
-                    symbolSize: function(val) {
-                        return Math.sqrt(val[2]) / 40;
-                    },
-                    showEffectOn: 'render',
-                    rippleEffect: {
-                        brushType: 'stroke'
-                    },
-                    hoverAnimation: true,
-                   //label: {
-                   //     normal: {
-                   //         formatter: '{b}: {c}',
-                   //         position: 'right',
-                   //         show: true
-                   //     }
-                   // },
                     itemStyle: {
                         normal: {
                             color: '#FFC809',
