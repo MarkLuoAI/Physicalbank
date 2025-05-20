@@ -21,26 +21,125 @@
 <body>
     <div id="main" style="width: 100%; height: 100vh;"></div>
     <script>
-    // 初始化全局变量
-    var chartDom = document.getElementById("main");
-    if (!chartDom) {
-        console.error('Chart container not found');
+       var chartDom = document.getElementById("main");
+var myChart = echarts.init(chartDom);
+var option;
+var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzwYVithDDCQ0rfQXB_-ndvIv23tL_VCJFM8BHFD4Ci-EnQkJaTmm-qAfjWOo6n2u3e/exec'; // Replace with your Google Apps Script URL
+
+// Function to fetch data from Google Sheets
+async function fetchData() {
+    try {
+        const response = await fetch(SCRIPT_URL);
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Error fetching data:', error);
+        return null;
+    }
+}
+
+// Process data from Google Sheets
+function processSheetData(sheetData) {
+    const years = [...new Set(sheetData.map(row => row.年度))].sort();
+    const cities = [...new Set(sheetData.map(row => row.縣市))];
+    
+    // Initialize data structures
+    const geoCoordMap = {
+        '高雄市': [120.63397253230777, 22.96510807924244],
+        '台中市': [120.88303557156821, 24.22976722061671],
+        '新北市': [121.56233791721156, 24.912096428815047],
+        '屏東縣': [120.644845, 22.542893],
+        '台南市': [120.32621160351262, 23.167583572934454],
+        '桃園市': [121.22942515940727, 24.908913064300542],
+        '花蓮縣': [121.427729, 23.783188],
+        '台北市': [121.51185772382642, 25.02771294110296],
+        '台東縣': [121.054566, 22.872413],
+        '彰化縣': [120.472066, 23.990594],
+        '雲林縣': [120.37140692500215, 23.7220205712259],
+        '南投縣': [120.98222282177481, 23.862057901460222],
+        '基隆市': [121.7090375475519, 25.115942332151228],
+        '新竹縣': [121.15845951265977, 24.676877878638546],
+        '苗栗縣': [120.92111693825872, 24.493472949565177],
+        '嘉義縣': [120.6384686106581, 23.49204553894098],
+        '宜蘭縣': [121.6827471803587, 24.55390323104749],
+        '嘉義市': [120.44380244177937, 23.49123253156815],
+        '新竹市': [120.97063102545773, 24.807783800541078],
+        '澎湖縣': [119.61676029530447, 23.58029482756267],
+        '金門縣': [118.38915926697726, 24.450510475737918],
+        '全台': [121.944845, 22.542893]
+    };
+
+    // Initialize data structures for each year
+    const dataByYear = {};
+    years.forEach(year => {
+        dataByYear[year] = {
+            '核定金額': {},
+            '受益戶數': {},
+            '受益人次': {},
+            '受益同住人': {}
+        };
+    });
+
+    // Fill in the data
+    sheetData.forEach(row => {
+        const year = row.年度;
+        const city = row.縣市;
+        
+        if (dataByYear[year]) {
+            dataByYear[year]['核定金額'][city] = row.核定金額 || 0;
+            dataByYear[year]['受益戶數'][city] = row.受益戶數 || 0;
+            dataByYear[year]['受益人次'][city] = row.受益人次 || 0;
+            dataByYear[year]['受益同住人'][city] = row.受益同住人 || 0;
+        }
+    });
+
+    // Fill in missing cities with 0
+    years.forEach(year => {
+        cities.forEach(city => {
+            ['核定金額', '受益戶數', '受益人次', '受益同住人'].forEach(type => {
+                if (!dataByYear[year][type][city]) {
+                    dataByYear[year][type][city] = 0;
+                }
+            });
+        });
+    });
+
+    return {
+        years: years,
+        cities: cities,
+        geoCoordMap: geoCoordMap,
+        dataByYear: dataByYear
+    };
+}
+
+// Initialize the chart with data
+async function initChart() {
+    const sheetData = await fetchData();
+    if (!sheetData) {
+        console.error('Failed to load data');
+        return;
     }
     
-    var option = {};
-    var myChart = null;
-    var optionXyMap01 = null;
-    var yearData = {};
-    var years = [];
-    var AtotalAmounts = {};
-    var pinData = {
-        'pin1': [] // 将在加载数据后填充
-    };
+    const { years, geoCoordMap, dataByYear } = processSheetData(sheetData);
     
-    // 地图数据URL
-    var uploadedDataURL = "https://slimMay.github.io/storeTW/twCounty2010.json";
+    // Rest of your chart initialization code...
+    // You'll need to update the rest of your code to use the processed data
+    // from dataByYear instead of the hardcoded values
+    
+    // For example, replace d1, d2, etc. with dataByYear[2017]['核定金額'], etc.
+    // And update the chart options to use the new data structure
+    
+    // This is a placeholder - you'll need to update this part based on your chart's needs
+    myChart.setOption(option);
+}
 
+// Start the application
+initChart();
 
+var uploadedDataURL = "https://slimMay.github.io/storeTW/twCounty2010.json";
 
 // 城市坐标数据
 var geoCoordMap = {
@@ -691,7 +790,7 @@ var colors = [
     "#1DE9B6", "#BDA29A", "#6E7074", "#546570", "#C4CCD3"
 ];
 
-var year = []; // 将在加载数据后填充 // 添加第四年
+var year = ["2017","2018", "2019", "2020", "2021", "2022", "2023", "2024"]; // 添加第四年
 var mapData = [[], [], [], [], [], [], [], []]; // 四年份的数据
 var pinData = [
     // 受益戶數数据 (第一种Pin数据)
@@ -879,202 +978,6 @@ function switchPinType(type) {
     myChart.setOption(optionXyMap01);
 }
 
-// 加载CSV数据并初始化图表
-function loadCSVData() {
-    return new Promise((resolve, reject) => {
-        fetch('data1.csv')
-            .then(response => response.text())
-            .then(csvData => {
-                // 解析CSV数据
-                const lines = csvData.split('\n');
-                
-                // 处理数据
-                for (let i = 1; i < lines.length; i++) {
-                    if (!lines[i].trim()) continue;
-                    
-                    const values = lines[i].split(',');
-                    const year = values[0].trim();
-                    const city = values[1].trim();
-                    const amount = parseFloat(values[2]) || 0;
-                    
-                    // 初始化年份数据
-                    if (!yearData[year]) {
-                        yearData[year] = {};
-                        years.push(year);
-                        
-                        // 初始化所有城市为0
-                        Object.keys(geoCoordMap).forEach(city => {
-                            yearData[year][city] = 0;
-                        });
-                    }
-                    
-                    // 设置城市数据
-                    yearData[year][city] = amount;
-                }
-                
-                // 对年份进行排序
-                years.sort();
-                year = years; // 更新年份数组
-                
-                // 计算每年的总金额
-                years.forEach(y => {
-                    AtotalAmounts[y] = Object.values(yearData[y]).reduce((sum, val) => sum + val, 0);
-                });
-                
-                // 初始化pinData
-                pinData.pin1 = years.map(y => {
-                    const yearDataObj = Object.entries(yearData[y])
-                        .filter(([_, value]) => value > 0) // 只包含金额大于0的城市
-                        .map(([name, value]) => ({
-                            name,
-                            value: geoCoordMap[name] ? geoCoordMap[name].concat([value]) : []
-                        }));
-                    return yearDataObj.sort((a, b) => b.value[2] - a.value[2]);
-                });
-                
-                resolve();
-            })
-            .catch(error => {
-                console.error('Error loading CSV data:', error);
-                reject(error);
-            });
-    });
-}
-
-// 初始化图表
-function initChart() {
-    // 确保在数据加载完成后初始化图表
-    loadCSVData().then(() => {
-        // 确保年份数据已加载
-        if (years.length === 0) {
-            console.error('No data loaded from CSV');
-            return;
-        }
-        // 更新图表选项
-        optionXyMap01.timeline.data = year;
-        
-        // 清空现有选项
-        optionXyMap01.options = [];
-        
-        // 为每一年创建选项
-        years.forEach((y, n) => {
-            var AformattedAmount = AtotalAmounts[y] ? AtotalAmounts[y].toLocaleString() : '0';
-            
-            optionXyMap01.options.push({
-                title: {
-                    text: y + '年 實物銀行 服務數據統計',
-                    subtext: '總核定金額: ' + AformattedAmount + ' 元',
-                    left: 'center',
-                    top: 20,
-                    textStyle: {
-                        color: '#fff',
-                        fontSize: 24
-                    },
-                    subtextStyle: {
-                        color: '#ddd',
-                        fontSize: 16,
-                        padding: [10, 0, 0, 0]
-                    }
-                },
-                tooltip: {
-                    trigger: 'item',
-                    formatter: function(params) {
-                        if (params.seriesType === 'map') {
-                            return params.name + ': ' + (params.value ? params.value.toLocaleString() + ' 元' : '0 元');
-                        }
-                        return params.name + ': ' + (params.value ? params.value[2].toLocaleString() + ' 元' : '0 元');
-                    }
-                },
-                visualMap: {
-                    min: 0,
-                    max: 2000000,
-                    text: ['高', '低'],
-                    realtime: false,
-                    calculable: true,
-                    inRange: {
-                        color: ['#50a3ba', '#eac736', '#d94e5d']
-                    },
-                    textStyle: {
-                        color: '#ddd'
-                    }
-                },
-                series: [
-                    {
-                        name: '核定金额',
-                        type: 'map',
-                        map: 'TW',
-                        roam: true,
-                        label: {
-                            show: true,
-                            color: '#fff'
-                        },
-                        emphasis: {
-                            label: {
-                                color: '#fff'
-                            }
-                        },
-                        data: Object.entries(yearData[y]).map(([name, value]) => ({
-                            name,
-                            value
-                        }))
-                    }
-                ]
-            });
-        });
-        
-        // 设置图表选项
-        myChart.setOption(optionXyMap01);
-    });
-}
-
-// 页面加载完成后初始化图表
-document.addEventListener('DOMContentLoaded', function() {
-    if (!chartDom) {
-        console.error('Chart container not found');
-        return;
-    }
-    
-    // 初始化图表实例
-    myChart = echarts.init(chartDom);
-    
-    // 注册地图数据并初始化图表
-    fetch(uploadedDataURL)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(geoJson => {
-            // 注册地图
-            echarts.registerMap('TW', geoJson);
-            
-            // 初始化图表选项
-            initChartOptions(geoJson);
-            
-            // 加载CSV数据
-            return loadCSVData().then(() => {
-                // 初始化图表
-                initChart();
-                
-                // 设置图表选项
-                if (optionXyMap01 && myChart) {
-                    myChart.setOption(optionXyMap01);
-                }
-                
-                // 添加窗口大小调整监听器
-                window.addEventListener('resize', function() {
-                    if (myChart) {
-                        myChart.resize();
-                    }
-                });
-            });
-        })
-        .catch(error => {
-            console.error('Error initializing chart:', error);
-        });
-});
-
 // 添加切换按钮
 var buttonContainer = document.createElement('div');
 buttonContainer.style.position = 'absolute';
@@ -1103,15 +1006,9 @@ for (var i = 0; i < pinTypeTitles.length; i++) {
 
 document.body.appendChild(buttonContainer);
 
-// 初始化图表选项
-function initChartOptions(geoJson) {
-    if (!geoJson) return;
+$.getJSON(uploadedDataURL, function(geoJson) {
+    echarts.registerMap('TW', geoJson);
     
-    // 确保图表容器存在
-    if (!chartDom) {
-        console.error('Chart container not found');
-        return;
-    }
     var convertData = function(data) {
         var res = [];
         for (var i = 0; i < data.length; i++) {
@@ -1366,10 +1263,36 @@ function initChartOptions(geoJson) {
                             areaColor: '#031525',
                             borderColor: '#FFFFFF',
                         },
-emphasis: {
+                        emphasis: {
                             areaColor: '#2B91B7'
                         }
                     },
+                    animation: false,
+                    data: mapData[n]
+                },
+                {
+                    // 核定金额气泡
+                    name: '核定金额',
+                    type: 'effectScatter',
+                    coordinateSystem: 'geo',
+                    data: convertData(mapData[n].sort(function(a, b) {
+                        return b.value - a.value;
+                    })),
+                    symbolSize: function(val) {
+                        return Math.sqrt(val[2]) / 40;
+                    },
+                    showEffectOn: 'render',
+                    rippleEffect: {
+                        brushType: 'stroke'
+                    },
+                    hoverAnimation: true,
+                   //label: {
+                   //     normal: {
+                   //         formatter: '{b}: {c}',
+                   //         position: 'right',
+                   //         show: true
+                   //     }
+                   // },
                     itemStyle: {
                         normal: {
                             color: '#FFC809',
@@ -1433,108 +1356,16 @@ emphasis: {
                 }
             ]
         });
-    };
-
+    }
+    
+    myChart.setOption(optionXyMap01);
+    
     // 添加窗口大小调整监听器
     window.addEventListener('resize', function() {
         myChart.resize();
     });
-}
-
-// 初始化图表
-function initChart() {
-    // 确保年份数据已加载
-    if (!years || years.length === 0) {
-        console.error('No data loaded from CSV');
-        return;
-    }
-    
-    // 更新图表选项
-    if (optionXyMap01) {
-        // 确保years是数组且不为空
-        optionXyMap01.timeline = optionXyMap01.timeline || {};
-        optionXyMap01.timeline.data = Array.isArray(years) ? years : [];
-        
-        // 清空现有选项
-        optionXyMap01.options = [];
-        
-        // 为每一年创建选项
-        years.forEach((y, n) => {
-            var AformattedAmount = AtotalAmounts[y] ? AtotalAmounts[y].toLocaleString() : '0';
-            
-            optionXyMap01.options.push({
-                title: {
-                    text: y + '年 實物銀行 服務數據統計',
-                    subtext: '總核定金額: ' + AformattedAmount + ' 元',
-                    left: 'center',
-                    top: 20,
-                    textStyle: {
-                        color: '#fff',
-                        fontSize: 24
-                    },
-                    subtextStyle: {
-                        color: '#ddd',
-                        fontSize: 16,
-                        padding: [10, 0, 0, 0]
-                    }
-                },
-                tooltip: {
-                    trigger: 'item',
-                    formatter: function(params) {
-                        if (params.seriesType === 'map') {
-                            return params.name + ': ' + (params.value ? params.value.toLocaleString() + ' 元' : '0 元');
-                        }
-                        return params.name + ': ' + (params.value ? params.value[2].toLocaleString() + ' 元' : '0 元');
-                    }
-                },
-                visualMap: {
-                    min: 0,
-                    max: 2000000,
-                    text: ['高', '低'],
-                    realtime: false,
-                    calculable: true,
-                    inRange: {
-                        color: ['#50a3ba', '#eac736', '#d94e5d']
-                    },
-                    textStyle: {
-                        color: '#ddd'
-                    }
-                },
-                series: [
-                    {
-                        name: '核定金额',
-                        type: 'map',
-                        map: 'TW',
-                        roam: true,
-                        label: {
-                            show: true,
-                            color: '#fff'
-                        },
-                        emphasis: {
-                            label: {
-                                color: '#fff'
-                            }
-                        },
-                        data: Object.entries(yearData[y]).map(([name, value]) => ({
-                            name,
-                            value
-                        }))
-                    }
-                ]
-            });
-        });
-        
-        // 确保图表实例存在
-        if (myChart && optionXyMap01) {
-            try {
-                // 设置图表选项
-                myChart.setOption(optionXyMap01, true);
-            } catch (e) {
-                console.error('Error setting chart options:', e);
-            }
-        }
-    }
-}
+});
     </script>
 </body>
 </html>
+
