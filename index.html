@@ -65,6 +65,7 @@
             });
         }
 
+
         // 添加控制按鈕
         function addControlButtons() {
             var buttonContainer = document.createElement('div');
@@ -92,268 +93,129 @@
                 buttonContainer.appendChild(button);
             }
 
+
             document.body.appendChild(buttonContainer);
         }
+
 
         // 切換圖釘類型
         function switchPinType(type) {
             if (currentPinType !== type) {
                 currentPinType = type;
-                renderChart();
+                // 這裡可以添加切換圖釘類型的邏輯
             }
         }
 
+
         // 從 Google Apps Script 獲取數據
-        async function fetchData() {
-            try {
-                console.log('開始獲取數據，URL:', webAppUrl);
-                const response = await fetch(webAppUrl);
-                console.log('收到響應，狀態:', response.status);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const result = await response.json();
-                console.log('解析的JSON數據:', result);
-                
-                if (!result || result.length === 0) {
-                    throw new Error('接收到的數據為空');
-                }
-                
-                // 處理數據
-                processData(result);
-                
-                // 加載地圖並渲染圖表
-                loadMapAndRender();
-                
-            } catch (error) {
-                console.error('獲取數據失敗:', error);
-                const errorMessage = `數據加載失敗: ${error.message || '未知錯誤'}`;
-                console.error(errorMessage);
-                document.getElementById('loading').textContent = errorMessage;
-            }
+        function fetchData() {
+            fetch(webAppUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    processData(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+                    document.getElementById('loading').textContent = '數據加載失敗，請刷新頁面重試';
+                });
         }
+
 
         // 處理數據
         function processData(data) {
             console.log('開始處理數據，輸入數據:', data);
             
-            // 使用從服務器返回的 geoCoordMap 和 years
-            const geoCoordMap = data.geoCoordMap || {};
-            const dataArray = Array.isArray(data.data) ? data.data : [];
-            
-            // 從數據中提取所有唯一的年份
-            const yearSet = new Set();
-            
-            // 處理數據並提取年份
-            const processedData = dataArray.map(item => {
-                if (typeof item.year === 'string' && item.year.includes(',')) {
-                    // 處理逗號分隔的字符串格式: "2017,高雄市,467136,214,598,0"
-                    const [year, city, amount, households, people, cohabitants] = item.year.split(',');
-                    return {
-                        year: year.trim(),
-                        city: city.trim(),
-                        amount: parseInt(amount || 0) || 0,
-                        households: parseInt(households || 0) || 0,
-                        people: parseInt(people || 0) || 0,
-                        cohabitants: parseInt(cohabitants || 0) || 0
-                    };
-                }
-                return item;
-            });
-            
-            // 從處理後的數據中提取年份
-            processedData.forEach(item => {
-                if (item.year) {
-                    yearSet.add(item.year.toString());
-                }
-            });
-            
-            const years = Array.from(yearSet).sort();
-            
-            console.log('處理後的數據:', {
-                geoCoordMap,
-                years,
-                data: processedData
-            });
-            
-            if (years.length === 0) {
-                const errorMsg = '錯誤: 未找到有效的年份數據。請檢查數據源是否包含有效的年份字段。';
-                console.error(errorMsg);
-                throw new Error(errorMsg);
-            }
-            
-            // 按年份排序
-            years.sort();
-            console.log('找到的年份:', years);
-            
-            // 初始化應用數據
+            // 存儲處理後的數據
             window.appData = {
-                geoCoordMap: geoCoordMap,
-                years: years,
+                geoCoordMap: {},
+                years: [],
                 data: {}
             };
 
-            console.log('初始化數據結構...');
-            // 初始化每年的數據結構
-            years.forEach(year => {
-                window.appData.data[year] = {
-                    d: {}, // 核定金額
-                    A: {}, // 受益戶數
-                    B: {}, // 受益人次
-                    C: {}  // 受益同住人
-                };
-                
-                // 初始化每個城市的默認值
-                Object.keys(geoCoordMap).forEach(city => {
-                    window.appData.data[year].d[city] = 0;
-                    window.appData.data[year].A[city] = 0;
-                    window.appData.data[year].B[city] = 0;
-                    window.appData.data[year].C[city] = 0;
-                });
-            });
-
-            console.log('開始填充數據...');
-            // 填充數據
-            processedData.forEach((item, index) => {
-                try {
-                    const year = item.year.toString();
-                    const city = item.city;
-                    
-                    if (!year || !city) {
-                        console.warn(`跳過無效的數據項 ${index}:`, item);
-                        return;
-                    }
-                    
-                    if (!window.appData.data[year]) {
-                        console.warn(`跳過無效的年份 ${year} 的數據`);
-                        return;
-                    }
-                    
-                    // 獲取各項數據
-                    const amount = parseInt(item.amount) || 0;
-                    const households = parseInt(item.households) || 0;
-                    const people = parseInt(item.people) || 0;
-                    const cohabitants = parseInt(item.cohabitants) || 0;
-                    
-                    // 更新數據
-                    if (window.appData.data[year] && city in geoCoordMap) {
-                        window.appData.data[year].d[city] = amount;
-                        window.appData.data[year].A[city] = households;
-                        window.appData.data[year].B[city] = people;
-                        window.appData.data[year].C[city] = cohabitants;
-                        
-                        console.log(`處理項目 ${index}:`, { 
-                            year, 
-                            city, 
-                            amount,
-                            households,
-                            people,
-                            cohabitants 
-                        });
-                    } else {
-                        console.warn(`跳過無效的城市 ${city} 的數據`);
-                    }
-                } catch (error) {
-                    console.error(`處理數據項 ${index} 時出錯:`, error, '數據項:', item);
+            // 提取年份
+            const years = new Set();
+            for (const key in data) {
+                if (key.startsWith('Y') && data[key]) {
+                    years.add(key.substring(1));
                 }
-            });
-            
-            console.log('數據處理完成，結果:', window.appData);
+            }
+            window.appData.years = Array.from(years).sort();
+
+            // 處理地理坐標和數據
+            for (const key in data) {
+                if (key === 'geoCoord') {
+                    // 處理地理坐標
+                    try {
+                        const geoData = JSON.parse(data[key]);
+                        for (const city in geoData) {
+                            if (geoData[city] && Array.isArray(geoData[city]) && geoData[city].length === 2) {
+                                window.appData.geoCoordMap[city] = geoData[city];
+                            }
+                        }
+                    } catch (e) {
+                        console.error('解析地理坐標數據失敗:', e);
+                    }
+                } else if (key.startsWith('Y') && data[key]) {
+                    // 處理年份數據
+                    const year = key.substring(1);
+                    try {
+                        const yearData = JSON.parse(data[key]);
+                        window.appData.data[year] = yearData;
+                    } catch (e) {
+                        console.error(`解析${year}年數據失敗:`, e);
+                    }
+                }
+            }
+
+
+            // 加載地圖並渲染圖表
+            loadMapAndRender();
         }
+
 
         // 加載地圖並渲染圖表
         function loadMapAndRender() {
-            const mapUrl = "https://slimMay.github.io/storeTW/twCounty2010.json";
-            console.log('開始加載地圖數據...');
-            
-            // 先初始化圖表實例
-            chartDom = document.getElementById('main');
-            myChart = echarts.init(chartDom);
+            const mapUrl = "https://slimmay.github.io/storeTW/twCounty2010.json";
             
             // 顯示加載動畫
-            myChart.showLoading();
+            document.getElementById('loading').style.display = 'block';
             
+            // 加載地圖數據
             fetch(mapUrl)
                 .then(response => {
-                    console.log('地圖數據響應狀態:', response.status);
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     return response.json();
                 })
                 .then(mapJson => {
-                    console.log('地圖數據加載成功', mapJson);
+                    // 註冊地圖
+                    echarts.registerMap('taiwan', mapJson);
                     
-                    try {
-                        // 確保地圖數據是有效的 GeoJSON
-                        if (!mapJson.type || !mapJson.features) {
-                            throw new Error('無效的地圖數據格式: 缺少必要的 GeoJSON 屬性');
-                        }
-                        
-                        // 處理地圖特徵，確保每個特徵都有必要的屬性
-                        const features = mapJson.features.map(feature => {
-                            const properties = feature.properties || {};
-                            // 確保每個特徵都有必要的屬性
-                            const name = properties.name || properties.NAME || properties.COUNTYNAME || '未知地區';
-                            
-                            // 創建新的特徵對象，確保不修改原始數據
-                            const newFeature = {
-                                ...feature,
-                                properties: {
-                                    ...properties,
-                                    name: name,
-                                    cp: properties.cp || [120, 23.5],
-                                    childNum: properties.childNum || 1
-                                }
-                            };
-                            
-                            // 確保幾何類型正確
-                            if (!newFeature.geometry || !newFeature.geometry.type) {
-                                console.warn('無效的幾何類型:', newFeature);
-                                return null;
-                            }
-                            
-                            return newFeature;
-                        }).filter(Boolean); // 過濾掉無效的特徵
-                        
-                        if (features.length === 0) {
-                            throw new Error('沒有有效的特徵數據');
-                        }
-                        
-                        // 創建一個新的 GeoJSON 對象
-                        const geoJson = {
-                            type: 'FeatureCollection',
-                            features: features
-                        };
-                        
-                        console.log('註冊地圖...', geoJson);
-                        
-                        // 註冊地圖
-                        echarts.registerMap('taiwan', geoJson);
-                        console.log('地圖註冊成功');
-                        
-                        // 添加控制按鈕
-                        addControlButtons();
-                        
-                        // 立即渲染圖表
-                        console.log('開始渲染圖表...');
-                        renderChart();
-                        
-                        // 隱藏加載動畫
-                        myChart.hideLoading();
-                    } catch (e) {
-                        console.error('處理地圖數據時出錯:', e);
-                        throw e;
-                    }
+                    // 初始化圖表
+                    chartDom = document.getElementById('main');
+                    myChart = echarts.init(chartDom);
+                    
+                    // 添加控制按鈕
+                    addControlButtons();
+                    
+                    // 渲染圖表
+                    renderChart();
+                    
+                    // 隱藏加載動畫
+                    document.getElementById('loading').style.display = 'none';
                 })
                 .catch(error => {
-                    const errorMsg = `加載地圖失敗: ${error.message || '未知錯誤'}`;
-                    console.error(errorMsg, error);
-                    document.getElementById('loading').textContent = errorMsg;
+                    console.error('加載地圖失敗:', error);
+                    document.getElementById('loading').textContent = '加載地圖失敗，請檢查網絡連接';
                 });
         }
+
 
         // 渲染圖表
         function renderChart() {
@@ -437,9 +299,6 @@
                 });
             });
             
-            // 準備類別數據 (用於柱狀圖)
-            const categoryData = mapData[0].map(item => item.name);
-            
             // 準備圖表選項
             optionXyMap01 = {
                 baseOption: {
@@ -494,17 +353,28 @@
                         formatter: function(params) {
                             if (params.seriesType === 'scatter') {
                                 return params.name + '<br/>' + params.marker + ' ' + params.seriesName + ': ' + params.value[2];
-                            } else if (params.seriesType === 'map') {
-                                return params.name + ': ' + (params.value || 0);
                             }
                             return params.name;
+                        }
+                    },
+                    visualMap: {
+                        min: 0,
+                        max: 1000000,
+                        text: ['高', '低'],
+                        realtime: false,
+                        calculable: true,
+                        inRange: {
+                            color: ['#e0f7fa', '#4fc3f7', '#0288d1', '#01579b']
+                        },
+                        textStyle: {
+                            color: '#fff'
                         }
                     },
                     geo: {
                         map: 'taiwan',
                         roam: true,
                         zoom: 1.2,
-                        center: [121, 23.5],
+                        center: [120.8, 23.5],
                         label: {
                             show: true,
                             color: '#000',
@@ -525,47 +395,6 @@
                             }
                         }
                     },
-                    visualMap: {
-                        min: 0,
-                        max: 1000000,
-                        text: ['高', '低'],
-                        realtime: false,
-                        calculable: true,
-                        inRange: {
-                            color: ['#e0f7fa', '#4fc3f7', '#0288d1', '#01579b']
-                        },
-                        textStyle: {
-                            color: '#fff'
-                        },
-                        // 確保視覺映射組件與地圖關聯
-                        seriesIndex: 0,
-                        dimension: 2
-                },
-                geo: {
-                    map: 'taiwan',
-                    roam: true,
-                    zoom: 1.2,
-                    center: [120.8, 23.5],
-                    label: {
-                        show: true,
-                        color: '#000',
-                        fontSize: 10
-                    },
-                    itemStyle: {
-                        areaColor: '#f5f5f5',
-                        borderColor: '#999',
-                        borderWidth: 0.5
-                    },
-                    emphasis: {
-                        label: {
-                            show: true,
-                            color: '#fff'
-                        },
-                        itemStyle: {
-                            areaColor: '#4b0082'
-                        }
-                    }
-                },
                     series: [],
                     animation: true,
                     animationDuration: 1000,
@@ -654,120 +483,55 @@
                         {
                             text: year + ' 實物銀行 服務數據統計',
                             left: '18%',
-                            top: '2%',
+                            top: '5%',
                             textStyle: {
                                 color: '#fff',
-                                fontSize: 32
+                                fontSize: 20,
+                                fontWeight: 'bold'
                             }
                         },
                         {
-                            id: 'statistic',
-                            text: year + " 核定金額 總計 :",
-                            left: '70%',
-                            top: '4%',
+                            text: '總服務人數: ' + formattedAmount + ' 人',
+                            left: '82%',
+                            top: '5%',
+                            textAlign: 'center',
                             textStyle: {
                                 color: '#fff',
-                                fontSize: 26
+                                fontSize: 14
                             }
                         },
                         {
-                            id: 'totalAmount',
-                            text: "$ " + formattedAmount,
-                            left: '81%',
-                            top: '4%',
+                            text: '受益戶數: ' + AformattedAmount + ' 戶',
+                            left: '82%',
+                            top: '10%',
+                            textAlign: 'center',
                             textStyle: {
-                                color: '#FFC809',
-                                fontSize: 30
-                            }
-                        },
-                        {
-                            id: 'pinType',
-                            text: pinTypeTitles[currentPinType] + " 總計",
-                            left: '20%',
-                            top: '11.5%',
-                            textStyle: {
-                                color: colors[currentPinType],
-                                fontSize: 26
-                            }
-                        },
-                        {
-                            id: 'pinTypeAmount-A',
-                            text: AformattedAmount + "戶",
-                            left: '20%',
-                            top: '15%',
-                            textStyle: {
-                                color: colors[currentPinType],
-                                fontSize: 30
+                                color: '#fff',
+                                fontSize: 14
                             }
                         }
                     ],
-                    xAxis: {
-                        type: 'value',
-                        scale: true,
-                        position: 'top',
-                        min: 0,
-                        boundaryGap: false,
-                        splitLine: {
-                            show: false
-                        },
-                        axisLine: {
-                            show: false
-                        },
-                        axisTick: {
-                            show: false
-                        },
-                        axisLabel: {
-                            margin: 2,
-                            textStyle: {
-                                color: '#aaa'
-                            }
-                        }
-                    },
-                    yAxis: {
-                        type: 'category',
-                        axisLine: {
-                            show: true,
-                            lineStyle: {
-                                color: '#ddd'
-                            }
-                        },
-                        axisTick: {
-                            show: false,
-                            lineStyle: {
-                                color: '#ddd'
-                            }
-                        },
-                        axisLabel: {
-                            interval: 0,
-                            textStyle: {
-                                color: '#ddd'
-                            }
-                        },
-                        data: categoryData
-                    },
                     series: [
                         {
-                            // 地圖底圖
                             name: '地圖',
                             type: 'map',
                             map: 'taiwan',
-                            roam: true,
+                            geoIndex: 0,
+                            aspectScale: 0.75,
+                            layoutCenter: ['50%', '50%'],
+                            layoutSize: '100%',
                             zoom: 1.2,
-                            center: [121, 23.5],
+                            roam: true,
                             label: {
                                 show: true,
-                                color: '#000',
+                                color: '#fff',
                                 fontSize: 10
-                            },
-                            itemStyle: {
-                                areaColor: '#f5f5f5',
-                                borderColor: '#999',
-                                borderWidth: 0.5
                             },
                             emphasis: {
                                 label: {
                                     show: true,
-                                    color: '#fff'
+                                    color: '#fff',
+                                    fontSize: 12
                                 },
                                 itemStyle: {
                                     areaColor: '#4b0082'
@@ -775,102 +539,84 @@
                             },
                             data: mapData[yearIndex].map(item => ({
                                 name: item.name,
-                                value: item.value
+                                value: item.value,
+                                itemStyle: {
+                                    color: {
+                                        type: 'radial',
+                                        x: 0.5,
+                                        y: 0.5,
+                                        r: 0.8,
+                                        colorStops: [{
+                                            offset: 0,
+                                            color: 'rgba(147, 235, 248, 0)'
+                                        }, {
+                                            offset: 1,
+                                            color: 'rgba(147, 235, 248, .8)'
+                                        }],
+                                        globalCoord: false
+                                    }
+                                }
                             }))
                         },
                         {
-                            // 圖釘數據
-                            name: pinTypeTitles[currentPinType],
+                            name: '散點',
                             type: 'scatter',
                             coordinateSystem: 'geo',
-                            symbol: 'pin',
-                            data: convertData([...pinData[currentPinType][yearIndex]].sort((a, b) => b.value - a.value)),
+                            data: convertData(pinData[currentPinType][yearIndex]),
                             symbolSize: function(val) {
-                                const size = Math.sqrt(val[2]) * 0.5;
-                                return Math.min(Math.max(size, 15), 40);
+                                return Math.min(Math.max(val[2] / 100, 5), 20);
                             },
+                            showEffectOn: 'render',
+                            rippleEffect: {
+                                brushType: 'stroke'
+                            },
+                            hoverAnimation: true,
                             label: {
-                                show: true,
                                 formatter: function(params) {
-                                    return params.value[2].toLocaleString();
+                                    return params.data.name;
                                 },
-                                color: '#fff',
-                                fontSize: 12,
-                                fontWeight: 'bold',
-                                textBorderColor: '#000',
-                                textBorderWidth: 2,
-                                textShadowColor: '#000',
-                                textShadowBlur: 5
+                                position: 'right',
+                                show: false
                             },
                             itemStyle: {
-                                color: colors[currentPinType],
+                                color: '#ffeb3b',
                                 shadowBlur: 10,
-                                shadowColor: colors[currentPinType]
+                                shadowColor: '#333'
                             },
                             emphasis: {
                                 label: {
                                     show: true
                                 }
                             },
-                            zlevel: 2
+                            zlevel: 1
                         }
                     ]
                 });
             });
-            
-            // 設置圖表選項
-            if (!myChart) {
-                myChart = echarts.init(document.getElementById('main'));
-            }
-            
+
             // 清除之前的圖表實例
             myChart.clear();
             
-            try {
-                // 設置新的圖表選項
-                myChart.setOption(optionXyMap01, true);
-                
-                // 顯示加載動畫
-                myChart.showLoading('default', {
-                    text: '正在加載地圖...',
-                    color: '#4cbbff',
-                    textColor: '#fff',
-                    maskColor: 'rgba(0, 0, 0, 0.7)'
-                });
-                
-                // 使用requestAnimationFrame確保DOM更新
-                requestAnimationFrame(() => {
-                    // 模擬數據加載延遲
-                    setTimeout(() => {
-                        try {
-                            myChart.hideLoading();
-                            myChart.setOption(optionXyMap01);
-                            
-                            // 觸發圖表重繪
-                            setTimeout(() => {
-                                myChart.dispatchAction({
-                                    type: 'highlight',
-                                    seriesIndex: 0,
-                                    dataIndex: 0
-                                });
-                                
-                                // 自動調整大小
-                                window.addEventListener('resize', function() {
-                                    myChart.resize();
-                                });
-                                
-                                console.log('圖表渲染完成');
-                            }, 100);
-                        } catch (e) {
-                            console.error('渲染圖表時出錯:', e);
-                            myChart.hideLoading();
-                        }
-                    }, 500);
-                });
-            } catch (e) {
-                console.error('設置圖表選項時出錯:', e);
+            // 設置新的圖表選項
+            myChart.setOption(optionXyMap01, true);
+            
+            // 顯示加載動畫
+            myChart.showLoading();
+            
+            // 模擬數據加載延遲
+            setTimeout(() => {
                 myChart.hideLoading();
-            }
+                myChart.setOption(optionXyMap01);
+                
+                // 觸發圖表重繪
+                setTimeout(() => {
+                    myChart.dispatchAction({
+                        type: 'highlight',
+                        seriesIndex: 0,
+                        dataIndex: 0
+                    });
+                }, 100);
+            }, 1000);
         }
     </script>
 </body>
