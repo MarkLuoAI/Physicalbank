@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -8,198 +9,229 @@
 </head>
 <style>
     body {
-      width: 100vw;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      background-image: linear-gradient(45deg, #4b0082, #00005b, #000020);
-      font-family: 'Montserrat', sans-serif;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background-image: linear-gradient(45deg, #4b0082, #00005b, #000020);
+        font-family: 'Montserrat', sans-serif;
     }
 </style>
 <body>
-<div id="main" style="width: 100%; height: 100vh;"></div>
-<script>
-const dataApiUrl = "https://script.google.com/macros/s/AKfycbzeH_JaNVRwiB9kb5gpDvJQzr48JuDmctRTzCVF_LZCGWG0qEwlXtFKiceb1piMA7Bz/exec"; // 替換為實際的 Script 部署網址
-const uploadedDataURL = "https://slimMay.github.io/storeTW/twCounty2010.json";
+    <div id="main" style="width: 100%; height: 100vh;"></div>
+    <script>
+    const chartDom = document.getElementById("main");
+    const myChart = echarts.init(chartDom);
+    const apiUrl = "https://script.google.com/macros/s/AKfycbxEcoLnzSuu3ATK4kXbAjmYvGLR5m_MMb5oAJvhm8xTVux17SGT7hIVUqKpRtHzwmwk/exec";
 
-const geoCoordMap = {
-    '高雄市': [120.63397253230777, 22.96510807924244],
-    '台中市': [120.88303557156821, 24.22976722061671],
-    '新北市': [121.56233791721156, 24.912096428815047],
-    '屏東縣': [120.644845, 22.542893],
-    '台南市': [120.32621160351262, 23.167583572934454],
-    '桃園市': [121.22942515940727, 24.908913064300542],
-    '花蓮縣': [121.427729, 23.783188],
-    '台北市': [121.51185772382642, 25.02771294110296],
-    '台東縣': [121.054566, 22.872413],
-    '彰化縣': [120.472066, 23.990594],
-    '雲林縣': [120.37140692500215, 23.7220205712259],
-    '南投縣': [120.98222282177481, 23.862057901460222],
-    '基隆市': [121.7090375475519, 25.115942332151228],
-    '新竹縣': [121.15845951265977, 24.676877878638546],
-    '苗栗縣': [120.92111693825872, 24.493472949565177],
-    '嘉義縣': [120.6384686106581, 23.49204553894098],
-    '宜蘭縣': [121.6827471803587, 24.55390323104749],
-    '嘉義市': [120.44380244177937, 23.49123253156815],
-    '新竹市': [120.97063102545773, 24.807783800541078],
-    '澎湖縣': [119.61676029530447, 23.58029482756267],
-    '金門縣': [118.38915926697726, 24.450510475737918]
-};
+    const geoCoordMap = {
+        '高雄市': [120.63397253230777, 22.96510807924244],
+        '台中市': [120.88303557156821, 24.22976722061671],
+        '新北市': [121.56233791721156, 24.912096428815047],
+        '屏東縣': [120.644845, 22.542893],
+        '台南市': [120.32621160351262, 23.167583572934454],
+        '桃園市': [121.22942515940727, 24.908913064300542],
+        '花蓮縣': [121.427729, 23.783188],
+        '台北市': [121.51185772382642, 25.02771294110296],
+        '台東縣': [121.054566, 22.872413],
+        '彰化縣': [120.472066, 23.990594],
+        '雲林縣': [120.37140692500215, 23.7220205712259],
+        '南投縣': [120.98222282177481, 23.862057901460222],
+        '基隆市': [121.7090375475519, 25.115942332151228],
+        '新竹縣': [121.15845951265977, 24.676877878638546],
+        '苗栗縣': [120.92111693825872, 24.493472949565177],
+        '嘉義縣': [120.6384686106581, 23.49204553894098],
+        '宜蘭縣': [121.6827471803587, 24.55390323104749],
+        '嘉義市': [120.44380244177937, 23.49123253156815],
+        '新竹市': [120.97063102545773, 24.807783800541078],
+        '澎湖縣': [119.61676029530447, 23.58029482756267],
+        '金門縣': [118.38915926697726, 24.450510475737918],
+        '全台': [121.944845, 22.542893]
+    };
 
-let year = [], mapData = [], pinData = [[],[],[]], barData = [], categoryData = [];
-let totalAmounts = {}, AtotalAmounts = {};
-let currentPinType = 0;
-const colors = ["#ff0076", "#F46E36", "#04B9FF"];
-const pinTypeTitles = ["受益戶數", "受益人次", "受益同住人"];
+    const colors = ["#ff0076", "#F46E36", "#04B9FF"];
+    const pinTypeTitles = ["受益戶數", "受益人次", "受益同住人"];
+    const years = ["2017","2018","2019","2020","2021","2022","2023","2024"];
+    let currentPinType = 0;
 
-let myChart = echarts.init(document.getElementById("main"));
-
-function convertData(data) {
-    let res = [];
-    for (let i = 0; i < data.length; i++) {
-        let geoCoord = geoCoordMap[data[i].name];
-        if (geoCoord && data[i].value > 0) {
-            res.push({ name: data[i].name, value: geoCoord.concat(data[i].value) });
-        }
-    }
-    return res;
-}
-
-function buildChartOptions() {
-    let options = [];
-    for (let i = 0; i < year.length; i++) {
-        let y = year[i];
-        let formattedAmount = totalAmounts[y].toLocaleString();
-        let AformattedAmount = AtotalAmounts[y].toLocaleString();
-
-        mapData[i].sort((a, b) => a.value - b.value);
-        barData[i] = mapData[i].map(e => e.value);
-        categoryData[i] = mapData[i].map(e => e.name);
-
-        options.push({
-            title: [
-                { text: y + ' 實物銀行 服務數據統計', left: '18%', top: '2%', textStyle: { color: '#fff', fontSize: 32 } },
-                { text: y + ' 核定金額 總計 :', left: '70%', top: '4%', textStyle: { color: '#fff', fontSize: 26 } },
-                { text: '$ ' + formattedAmount, left: '81%', top: '4%', textStyle: { color: '#FFC809', fontSize: 30 } },
-                { text: pinTypeTitles[currentPinType] + ' 總計', left: '20%', top: '11.5%', textStyle: { color: colors[currentPinType], fontSize: 26 } },
-                { text: AformattedAmount + '戶', left: '20%', top: '15%', textStyle: { color: colors[currentPinType], fontSize: 30 } }
-            ],
-            xAxis: { type: 'value', position: 'top', axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: '#aaa' }, splitLine: { show: false } },
-            yAxis: { type: 'category', data: categoryData[i], axisLabel: { color: '#ddd' }, axisLine: { lineStyle: { color: '#ddd' } } },
-            series: [
-                {
-                    type: 'map', map: 'TW', geoIndex: 0, roam: true, data: mapData[i],
-                    itemStyle: { normal: { areaColor: '#031525', borderColor: '#fff' }, emphasis: { areaColor: '#2B91B7' } }
-                },
-                {
-                    name: '核定金額', type: 'effectScatter', coordinateSystem: 'geo',
-                    data: convertData(mapData[i]), symbolSize: val => Math.sqrt(val[2]) / 40,
-                    itemStyle: { normal: { color: '#FFC809', shadowBlur: 5, shadowColor: '#FFC809' } }
-                },
-                {
-                    name: pinTypeTitles[currentPinType], type: 'scatter', coordinateSystem: 'geo',
-                    data: convertData(pinData[currentPinType][i]), symbol: 'pin',
-                    symbolSize: val => Math.sqrt(val[2]) * 2.6,
-                    label: { show: true, formatter: params => params.value[2], color: '#fff', fontSize: 15 },
-                    itemStyle: { color: colors[currentPinType], shadowColor: colors[currentPinType], shadowBlur: 10 }
-                },
-                {
-                    type: 'bar', data: barData[i], itemStyle: { color: '#FFC809' }
-                }
-            ]
-        });
+    function convertData(data, valueField) {
+        return data.map(item => {
+            const coord = geoCoordMap[item.縣市];
+            return coord ? { name: item.縣市, value: coord.concat(item[valueField] || 0) } : null;
+        }).filter(Boolean);
     }
 
-    return {
-        baseOption: {
+    function switchPinType(type, rawData) {
+        currentPinType = type;
+        renderChart(rawData);
+    }
+
+    function renderChart(data) {
+        const option = {
             timeline: {
-                data: year,
+                data: years,
                 axisType: 'category',
                 autoPlay: true,
                 playInterval: 3000,
                 bottom: '3%',
-                label: { color: '#ddd', fontSize: 15, emphasis: { color: '#fff', fontSize: 20 } },
-                controlStyle: { normal: { color: '#666' }, emphasis: { color: '#aaa' } }
+                label: {
+                    color: '#ddd',
+                    fontSize: 15
+                },
+                emphasis: {
+                    label: { color: '#fff', fontSize: 20 }
+                },
+                controlStyle: {
+                    color: '#666',
+                    borderColor: '#666'
+                }
             },
-            geo: {
-                show: true, map: 'TW', roam: true, layoutCenter: ['40%', '48%'], layoutSize: '111%',
-                itemStyle: {
-                    normal: {
+            baseOption: {
+                animationDuration: 1000,
+                grid: { right: '10%', top: '11%', bottom: '10%', width: '20%' },
+                geo: {
+                    map: 'TW',
+                    roam: true,
+                    layoutCenter: ['40%', '48%'],
+                    layoutSize: '111%',
+                    zoom: 1,
+                    itemStyle: {
+                        borderColor: 'rgba(147, 235, 248, 1)',
+                        borderWidth: 1,
                         areaColor: {
-                            type: 'radial', x: 0.5, y: 0.5, r: 0.8,
-                            colorStops: [{ offset: 0, color: 'rgba(147, 235, 248, 0)' }, { offset: 1, color: 'rgba(147, 235, 248, .2)' }]
+                            type: 'radial',
+                            x: 0.5,
+                            y: 0.5,
+                            r: 0.8,
+                            colorStops: [
+                                { offset: 0, color: 'rgba(147, 235, 248, 0)' },
+                                { offset: 1, color: 'rgba(147, 235, 248, .2)' }
+                            ]
                         },
-                        borderColor: 'rgba(147, 235, 248, 1)', shadowColor: 'rgba(128, 217, 248, 1)',
-                        shadowOffsetX: -2, shadowOffsetY: 2, shadowBlur: 10
+                        shadowColor: 'rgba(128, 217, 248, 1)',
+                        shadowOffsetX: -2,
+                        shadowOffsetY: 2,
+                        shadowBlur: 10
                     }
                 }
-            }
-        },
-        options: options
-    };
-}
+            },
+            options: []
+        };
 
-function switchPinType(type) {
-    currentPinType = type;
-    myChart.setOption(buildChartOptions());
-}
+        for (let i = 0; i < years.length; i++) {
+            const year = years[i];
+            const yearData = data.filter(d => d.年度 === year);
 
-function createButtons() {
-    const container = document.createElement('div');
-    container.style.position = 'absolute';
-    container.style.left = '10px';
-    container.style.bottom = '50px';
-    container.style.zIndex = '999';
+            const totalAmount = yearData.reduce((sum, d) => sum + (parseInt(d.核定金額) || 0), 0).toLocaleString();
+            const totalPins = yearData.reduce((sum, d) => sum + (parseInt(d[pinTypeTitles[currentPinType]]) || 0), 0).toLocaleString();
+
+            const mapData = yearData.map(d => ({ name: d.縣市, value: parseInt(d.核定金額) || 0 }))
+                                     .sort((a, b) => a.value - b.value);
+
+            const barData = mapData.map(d => d.value);
+            const categoryData = mapData.map(d => d.name);
+
+            option.options.push({
+                title: [
+                    { text: `${year} 實物銀行 服務數據統計`, left: '18%', top: '2%', textStyle: { color: '#fff', fontSize: 32 } },
+                    { text: "核定金額 總計", left: '70%', top: '4%', textStyle: { color: '#fff', fontSize: 26 } },
+                    { text: "$ " + totalAmount, left: '81%', top: '4%', textStyle: { color: '#FFC809', fontSize: 30 } },
+                    { text: pinTypeTitles[currentPinType] + " 總計", left: '20%', top: '11.5%', textStyle: { color: colors[currentPinType], fontSize: 26 } },
+                    { text: totalPins + "戶", left: '20%', top: '15%', textStyle: { color: colors[currentPinType], fontSize: 30 } }
+                ],
+                yAxis: {
+                    type: 'category',
+                    data: categoryData,
+                    axisLabel: { color: '#ddd' },
+                    axisLine: { lineStyle: { color: '#ddd' } }
+                },
+                xAxis: {
+                    type: 'value',
+                    axisLabel: { color: '#aaa' },
+                    axisLine: { show: false },
+                    splitLine: { show: false }
+                },
+                series: [
+                    {
+                        type: 'map',
+                        map: 'TW',
+                        geoIndex: 0,
+                        data: mapData
+                    },
+                    {
+                        name: '核定金額',
+                        type: 'effectScatter',
+                        coordinateSystem: 'geo',
+                        data: convertData(yearData, '核定金額'),
+                        symbolSize: val => Math.sqrt(val[2]) / 40,
+                        itemStyle: {
+                            color: '#FFC809',
+                            shadowBlur: 5,
+                            shadowColor: '#FFC809'
+                        },
+                        rippleEffect: { brushType: 'stroke' }
+                    },
+                    {
+                        name: pinTypeTitles[currentPinType],
+                        type: 'scatter',
+                        coordinateSystem: 'geo',
+                        symbol: 'pin',
+                        symbolSize: val => Math.sqrt(val[2]) * 2.6,
+                        label: {
+                            show: true,
+                            formatter: params => params.value[2],
+                            color: "#fff",
+                            fontSize: 15
+                        },
+                        itemStyle: {
+                            color: colors[currentPinType],
+                            shadowBlur: 10,
+                            shadowColor: colors[currentPinType]
+                        },
+                        data: convertData(yearData, pinTypeTitles[currentPinType])
+                    },
+                    {
+                        type: 'bar',
+                        data: barData,
+                        itemStyle: { color: '#FFC809' }
+                    }
+                ]
+            });
+        }
+
+        myChart.setOption(option);
+    }
+
+    fetch(apiUrl)
+        .then(res => res.json())
+        .then(json => {
+            $.getJSON("https://slimMay.github.io/storeTW/twCounty2010.json", geoJson => {
+                echarts.registerMap('TW', geoJson);
+                renderChart(json);
+            });
+        });
+
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.position = 'absolute';
+    buttonContainer.style.left = '10px';
+    buttonContainer.style.bottom = '50px';
+    buttonContainer.style.zIndex = '999';
 
     pinTypeTitles.forEach((title, i) => {
         const btn = document.createElement('button');
-        btn.innerHTML = title;
-        btn.style = "margin:5px;padding:5px 10px;background-color:#2B91B7;color:#fff;border:none;border-radius:3px;cursor:pointer;";
-        btn.onclick = () => switchPinType(i);
-        container.appendChild(btn);
+        btn.textContent = title;
+        btn.style.margin = '5px';
+        btn.style.padding = '5px 10px';
+        btn.style.backgroundColor = '#2B91B7';
+        btn.style.color = '#fff';
+        btn.style.border = 'none';
+        btn.style.borderRadius = '3px';
+        btn.onclick = () => fetch(apiUrl).then(res => res.json()).then(data => switchPinType(i, data));
+        buttonContainer.appendChild(btn);
     });
-
-    document.body.appendChild(container);
-}
-
-$.when($.getJSON(uploadedDataURL), $.getJSON(dataApiUrl)).done((geoJson, sheetData) => {
-    echarts.registerMap('TW', geoJson[0]);
-    const data = sheetData[0];
-    const yearMap = {};
-
-    data.forEach(row => {
-        const y = row["年"].toString(), name = row["縣市"];
-        const value = +row["核定金額"] || 0;
-        const A = +row["受益戶數"] || 0;
-        const B = +row["受益人次"] || 0;
-        const C = +row["受益同住人"] || 0;
-
-        if (!yearMap[y]) {
-            yearMap[y] = { map: [], pin: [[], [], []], total: 0, ATotal: 0 };
-        }
-
-        yearMap[y].map.push({ year: y, name, value });
-        yearMap[y].pin[0].push({ year: y, name, value: A });
-        yearMap[y].pin[1].push({ year: y, name, value: B });
-        yearMap[y].pin[2].push({ year: y, name, value: C });
-        yearMap[y].total += value;
-        yearMap[y].ATotal += A;
-    });
-
-    year = Object.keys(yearMap);
-    year.forEach((y, i) => {
-        mapData[i] = yearMap[y].map;
-        for (let j = 0; j < 3; j++) pinData[j][i] = yearMap[y].pin[j];
-        totalAmounts[y] = yearMap[y].total;
-        AtotalAmounts[y] = yearMap[y].ATotal;
-    });
-
-    myChart.setOption(buildChartOptions());
-    createButtons();
-    window.addEventListener('resize', () => myChart.resize());
-});
-</script>
+    document.body.appendChild(buttonContainer);
+    </script>
 </body>
 </html>
